@@ -1,5 +1,6 @@
-('C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\league '
- 'stuff\\build\\kart_sorter\\kart_sorter.pkg',
+('C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\excel '
+ 'stuff\\leagues\\League-Points-calculator\\Kart time '
+ 'program\\build\\kart_sorter\\kart_sorter.pkg',
  {'BINARY': True,
   'DATA': True,
   'EXECUTABLE': True,
@@ -11,84 +12,92 @@
   'SYMLINK': False},
  [('pyi-contents-directory _internal', '', 'OPTION'),
   ('PYZ-00.pyz',
-   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\league '
-   'stuff\\build\\kart_sorter\\PYZ-00.pyz',
+   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\excel '
+   'stuff\\leagues\\League-Points-calculator\\Kart time '
+   'program\\build\\kart_sorter\\PYZ-00.pyz',
    'PYZ'),
   ('struct',
-   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\league '
-   'stuff\\build\\kart_sorter\\localpycs\\struct.pyc',
+   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\excel '
+   'stuff\\leagues\\League-Points-calculator\\Kart time '
+   'program\\build\\kart_sorter\\localpycs\\struct.pyc',
    'PYMODULE'),
   ('pyimod01_archive',
-   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\league '
-   'stuff\\build\\kart_sorter\\localpycs\\pyimod01_archive.pyc',
+   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\excel '
+   'stuff\\leagues\\League-Points-calculator\\Kart time '
+   'program\\build\\kart_sorter\\localpycs\\pyimod01_archive.pyc',
    'PYMODULE'),
   ('pyimod02_importers',
-   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\league '
-   'stuff\\build\\kart_sorter\\localpycs\\pyimod02_importers.pyc',
+   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\excel '
+   'stuff\\leagues\\League-Points-calculator\\Kart time '
+   'program\\build\\kart_sorter\\localpycs\\pyimod02_importers.pyc',
    'PYMODULE'),
   ('pyimod03_ctypes',
-   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\league '
-   'stuff\\build\\kart_sorter\\localpycs\\pyimod03_ctypes.pyc',
+   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\excel '
+   'stuff\\leagues\\League-Points-calculator\\Kart time '
+   'program\\build\\kart_sorter\\localpycs\\pyimod03_ctypes.pyc',
    'PYMODULE'),
   ('pyimod04_pywin32',
-   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\league '
-   'stuff\\build\\kart_sorter\\localpycs\\pyimod04_pywin32.pyc',
+   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\excel '
+   'stuff\\leagues\\League-Points-calculator\\Kart time '
+   'program\\build\\kart_sorter\\localpycs\\pyimod04_pywin32.pyc',
    'PYMODULE'),
   ('pyiboot01_bootstrap',
-   'C:\\Users\\Asalt\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python311\\site-packages\\PyInstaller\\loader\\pyiboot01_bootstrap.py',
+   'C:\\Users\\Asalt\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python313\\site-packages\\PyInstaller\\loader\\pyiboot01_bootstrap.py',
    'PYSOURCE'),
   ('pyi_rth_inspect',
-   'C:\\Users\\Asalt\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python311\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_inspect.py',
+   'C:\\Users\\Asalt\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python313\\site-packages\\PyInstaller\\hooks\\rthooks\\pyi_rth_inspect.py',
    'PYSOURCE'),
   ('kart_sorter',
-   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\league '
-   'stuff\\kart_sorter.py',
+   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\excel '
+   'stuff\\leagues\\League-Points-calculator\\Kart time '
+   'program\\kart_sorter.py',
    'PYSOURCE'),
-  ('python311.dll',
+  ('python313.dll',
    'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\\python311.dll',
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2032.0_x64__qbz5n2kfra8p0\\python313.dll',
    'BINARY'),
+  ('unicodedata.pyd',
+   'C:\\Program '
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2032.0_x64__qbz5n2kfra8p0\\DLLs\\unicodedata.pyd',
+   'EXTENSION'),
   ('_decimal.pyd',
    'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\\DLLs\\_decimal.pyd',
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2032.0_x64__qbz5n2kfra8p0\\DLLs\\_decimal.pyd',
    'EXTENSION'),
   ('_hashlib.pyd',
    'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\\DLLs\\_hashlib.pyd',
-   'EXTENSION'),
-  ('unicodedata.pyd',
-   'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\\DLLs\\unicodedata.pyd',
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2032.0_x64__qbz5n2kfra8p0\\DLLs\\_hashlib.pyd',
    'EXTENSION'),
   ('select.pyd',
    'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\\DLLs\\select.pyd',
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2032.0_x64__qbz5n2kfra8p0\\DLLs\\select.pyd',
    'EXTENSION'),
   ('_socket.pyd',
    'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\\DLLs\\_socket.pyd',
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2032.0_x64__qbz5n2kfra8p0\\DLLs\\_socket.pyd',
    'EXTENSION'),
   ('_lzma.pyd',
    'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\\DLLs\\_lzma.pyd',
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2032.0_x64__qbz5n2kfra8p0\\DLLs\\_lzma.pyd',
    'EXTENSION'),
   ('_bz2.pyd',
    'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\\DLLs\\_bz2.pyd',
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2032.0_x64__qbz5n2kfra8p0\\DLLs\\_bz2.pyd',
    'EXTENSION'),
   ('VCRUNTIME140.dll',
    'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\\VCRUNTIME140.dll',
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2032.0_x64__qbz5n2kfra8p0\\VCRUNTIME140.dll',
    'BINARY'),
   ('libcrypto-3.dll',
    'C:\\Program '
-   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\\DLLs\\libcrypto-3.dll',
+   'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.2032.0_x64__qbz5n2kfra8p0\\DLLs\\libcrypto-3.dll',
    'BINARY'),
   ('base_library.zip',
-   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\league '
-   'stuff\\build\\kart_sorter\\base_library.zip',
+   'C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\excel '
+   'stuff\\leagues\\League-Points-calculator\\Kart time '
+   'program\\build\\kart_sorter\\base_library.zip',
    'DATA')],
- 'python311.dll',
+ 'python313.dll',
  False,
  False,
  False,
