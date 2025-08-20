@@ -1,6 +1,6 @@
 import csv
 
-filename = 'kart operation.csv'
+filename = r"C:\Users\Asalt\OneDrive - Full Throttle Adrenaline Park\excel stuff\leagues\League-Points-calculator\Kart time program\kart operation.csv"
 kart_data = []
 
 with open(filename, newline='') as csvfile:
