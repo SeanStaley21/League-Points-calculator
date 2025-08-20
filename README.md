@@ -2,7 +2,7 @@
 This folder includes an excel file that helps with tracking of a gokarting league and a python program that aids in kart time sorting for the divisions
 the excel file has a couple sheets: Roster, Leaderboards, Points calculator, Juniors, Division 1-3
 
-  ## roster:
+  ## Roster:
   allows adding drivers to divisons (MAX 13)
   names are first and last name
   adding their weights
