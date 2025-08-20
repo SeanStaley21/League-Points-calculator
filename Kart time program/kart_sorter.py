@@ -1,5 +1,7 @@
 import csv
 import os
+from rich.console import Console
+from rich.table import Table
 
 # Get the path to the user's Downloads folder
 downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
@@ -34,16 +36,23 @@ try:
             except ValueError:
                 continue  # Skip rows with invalid data
 
-    # Organize karts by class
+    # Organize karts by class and print with rich tables
+    console = Console()
     classes = ["Pro", "Junior", "Intermediate", "Other"]
     for kart_class in classes:
         class_karts = [k for k in kart_data if k[3] == kart_class]
         if class_karts:
-            # Sort by best lap time (ascending = faster)
             sorted_karts = sorted(class_karts, key=lambda x: x[2])
-            print(f"\n===== {kart_class} Karts =====")
+            table = Table(title=f"{kart_class} Karts")
+            table.add_column("Rank", justify="center")
+            table.add_column("Kart No", justify="center")
+            table.add_column("Avg Lap", justify="center")
+            table.add_column("Best Lap", justify="center")
+
             for rank, (kart_no, avg_lap, best_lap, _) in enumerate(sorted_karts, start=1):
-                print(f"{rank}. Kart {kart_no} — Avg Lap: {avg_lap:.3f} sec | Best Lap: {best_lap:.3f} sec")
+                table.add_row(str(rank), kart_no, f"{avg_lap:.3f}", f"{best_lap:.3f}")
+
+            console.print(table)
 except FileNotFoundError:
     print(f"Could not find 'kart operation.csv' in your Downloads folder: {filename}")
 
