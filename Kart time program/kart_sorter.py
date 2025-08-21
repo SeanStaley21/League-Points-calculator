@@ -57,3 +57,10 @@ except FileNotFoundError:
     print(f"Could not find 'kart operation.csv' in your Downloads folder: {filename}")
 
 input("\nPress Enter to exit...")
+
+
+# File path
+# C:\Users\Asalt\OneDrive - Full Throttle Adrenaline Park\excel stuff\leagues\League-Points-calculator\Kart time program
+
+# compile code
+#  "C:\Users\Asalt\AppData\Local\Programs\Python\Python313\python.exe" -m PyInstaller --onefile kart_sorter.py
