@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['C:\\Users\\Asalt\\OneDrive - Full Throttle Adrenaline Park\\excel stuff\\leagues\\League-Points-calculator\\Kart time program\\kart_sorter.py'],
+    ['kart_sorter.py'],
     pathex=[],
     binaries=[],
     datas=[],
