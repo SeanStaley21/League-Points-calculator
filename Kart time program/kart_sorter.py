@@ -3,10 +3,9 @@ import os
 from rich.console import Console
 from rich.table import Table
 
-# Get the path to the user's Downloads folder
-downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-filename = os.path.join(downloads_folder, "kart operation.csv")
-kart_data = []
+def get_downloads_csv_path(filename="kart operation.csv"):
+    downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+    return os.path.join(downloads_folder, filename)
 
 def get_kart_class(kart_no):
     try:
@@ -22,21 +21,25 @@ def get_kart_class(kart_no):
     except ValueError:
         return "Other"
 
-try:
-    with open(filename, newline='') as csvfile:
-        reader = csv.DictReader(csvfile)
-        
-        for row in reader:
-            try:
-                kart_no = row['Kart No']
-                avg_lap = float(row['Average Lap Time'])
-                best_lap = float(row['Best Lap Time'])
-                kart_class = get_kart_class(kart_no)
-                kart_data.append((kart_no, avg_lap, best_lap, kart_class))
-            except ValueError:
-                continue  # Skip rows with invalid data
+def read_kart_data(filename):
+    kart_data = []
+    try:
+        with open(filename, newline='') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                try:
+                    kart_no = row['Kart No']
+                    avg_lap = float(row['Average Lap Time'])
+                    best_lap = float(row['Best Lap Time'])
+                    kart_class = get_kart_class(kart_no)
+                    kart_data.append((kart_no, avg_lap, best_lap, kart_class))
+                except ValueError:
+                    continue  # Skip rows with invalid data
+    except FileNotFoundError:
+        print(f"Could not find 'kart operation.csv' in your Downloads folder: {filename}")
+    return kart_data
 
-    # Organize karts by class and print with rich tables
+def print_kart_tables(kart_data):
     console = Console()
     classes = ["Pro", "Junior", "Intermediate", "Other"]
     for kart_class in classes:
@@ -53,11 +56,16 @@ try:
                 table.add_row(str(rank), kart_no, f"{avg_lap:.3f}", f"{best_lap:.3f}")
 
             console.print(table)
-except FileNotFoundError:
-    print(f"Could not find 'kart operation.csv' in your Downloads folder: {filename}")
 
-input("\nPress Enter to exit...")
+def main():
+    filename = get_downloads_csv_path()
+    kart_data = read_kart_data(filename)
+    if kart_data:
+        print_kart_tables(kart_data)
+    input("\nPress Enter to exit...")
 
+if __name__ == "__main__":
+    main()
 
 # File path
 # C:\Users\Asalt\OneDrive - Full Throttle Adrenaline Park\excel stuff\leagues\League-Points-calculator\Kart time program
