@@ -3,10 +3,6 @@ import os
 from rich.console import Console
 from rich.table import Table
 
-def get_downloads_csv_path(filename="kart operation.csv"):
-    downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-    return os.path.join(downloads_folder, filename)
-
 def get_kart_class(kart_no):
     try:
         num = int(kart_no)
@@ -21,10 +17,12 @@ def get_kart_class(kart_no):
     except ValueError:
         return "Other"
 
-def read_kart_data(filename):
+def read_csv(filename="kart operation.csv"):
+    downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+    filepath = os.path.join(downloads_folder, filename)
     kart_data = []
     try:
-        with open(filename, newline='') as csvfile:
+        with open(filepath, newline='') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 try:
@@ -36,7 +34,7 @@ def read_kart_data(filename):
                 except ValueError:
                     continue  # Skip rows with invalid data
     except FileNotFoundError:
-        print(f"Could not find 'kart operation.csv' in your Downloads folder: {filename}")
+        print(f"Could not find 'kart operation.csv' in your Downloads folder: {filepath}")
     return kart_data
 
 def print_kart_tables(kart_data):
@@ -58,8 +56,7 @@ def print_kart_tables(kart_data):
             console.print(table)
 
 def main():
-    filename = get_downloads_csv_path()
-    kart_data = read_kart_data(filename)
+    kart_data = read_csv()
     if kart_data:
         print_kart_tables(kart_data)
     input("\nPress Enter to exit...")
