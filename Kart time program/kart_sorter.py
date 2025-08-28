@@ -1,4 +1,3 @@
-import csv
 import os
 import pandas as pd
 from rich.console import Console
@@ -18,40 +17,18 @@ def get_kart_class(kart_no):
     except ValueError:
         return "Other"
 
-def read_csv(base_filename):
+def read_xls():
     downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-    filename = f"{base_filename}.csv"
-    filepath = os.path.join(downloads_folder, filename)
-    kart_data = []
-    try:
-        with open(filepath, newline='') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                try:
-                    kart_no = row['Kart No']
-                    avg_lap = float(row['Average Lap Time'])
-                    best_lap = float(row['Best Lap Time'])
-                    kart_class = get_kart_class(kart_no)
-                    kart_data.append((kart_no, avg_lap, best_lap, kart_class))
-                except ValueError:
-                    continue  # Skip rows with invalid data
-    except FileNotFoundError:
-        print(f"Could not find '{filename}' in your Downloads folder: {filepath}")
-    return kart_data
-
-def read_xls(base_filename):
-    downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-    filename = f"{base_filename}.xls"
+    filename = "Excel.xls"
     filepath = os.path.join(downloads_folder, filename)
     kart_data = []
     try:
         tables = pd.read_html(filepath, header=None)
-        df = tables[0]  # Use the first table found
-        # Manually set column names
+        df = tables[0]
         df.columns = [
             "Kart No", "# Heats", "# Laps", "Average Lap Time", "Best Lap Time", "Total Hour"
         ]
-        for _, row in df.iloc[1:].iterrows():  # Skip the first row if it's a duplicate header
+        for _, row in df.iloc[1:].iterrows():
             try:
                 kart_no = str(row['Kart No'])
                 avg_lap = float(str(row['Average Lap Time']).replace(',', ''))
@@ -59,9 +36,9 @@ def read_xls(base_filename):
                 kart_class = get_kart_class(kart_no)
                 kart_data.append((kart_no, avg_lap, best_lap, kart_class))
             except (ValueError, KeyError):
-                continue  # Skip rows with invalid data
+                continue
     except FileNotFoundError:
-        print(f"Could not find '{filename}' in your Downloads folder: {filepath}")
+        print(f"Could not find 'Excel.xls' in your Downloads folder: {filepath}")
     except Exception as e:
         print(f"Error reading HTML table: {e}")
     return kart_data
@@ -85,18 +62,7 @@ def print_kart_tables(kart_data):
             console.print(table)
 
 def main():
-    base_filename = input("Enter the base filename (without extension): ").strip()
-    print("Select file type to read:")
-    print("1. EXCEL (.xls)")
-    print("2. CSV (.csv)")
-    choice = input("What would you like: ").strip()
-    if choice == "1":
-        kart_data = read_xls(base_filename)
-    elif choice == "2":
-        kart_data = read_csv(base_filename)
-    else:
-        print("Invalid choice. Exiting.")
-        return
+    kart_data = read_xls()
     if kart_data:
         print_kart_tables(kart_data)
     else:
