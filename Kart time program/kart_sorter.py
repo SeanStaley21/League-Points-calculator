@@ -43,8 +43,8 @@ def read_xls():
     return kart_data
 
 def save_kart_tables(kart_data):
-    # Get the directory where the script is located
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # Get the user's Downloads folder
+    script_dir = os.path.join(os.path.expanduser("~"), "Downloads")
     current_date = datetime.now().strftime("%m %d %Y")
     output_filename = f"Kart_Results_{current_date}.txt"
     output_filepath = os.path.join(script_dir, output_filename)
