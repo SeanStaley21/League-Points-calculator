@@ -60,15 +60,14 @@ def save_kart_tables(kart_data):
             class_karts = [k for k in kart_data if k[3] == kart_class]
             if class_karts:
                 sorted_karts = sorted(class_karts, key=lambda x: x[2])
-                f.write(f"\n{'='*60}\n")
+                f.write(f"{current_date}\n")
+                f.write(f"{'='*60}\n")
                 f.write(f"{kart_class} Karts\n")
-                f.write(f"{'='*60}\n\n")
+                f.write(f"{'='*60}\n")
                 f.write(f"{'Rank':<8} {'Kart No':<12} {'Avg Lap':<15} {'Best Lap':<15}\n")
                 f.write(f"{'-'*60}\n")
-                
                 for rank, (kart_no, avg_lap, best_lap, _) in enumerate(sorted_karts, start=1):
                     f.write(f"{rank:<8} {kart_no:<12} {avg_lap:<15.3f} {best_lap:<15.3f}\n")
-                f.write("\n")
     
     print(f"Results saved to: {output_filepath}")
 
@@ -90,6 +89,6 @@ if __name__ == "__main__":
 # C:\Users\Asalt\OneDrive - Full Throttle Adrenaline Park\excel stuff\leagues\League-Points-calculator\Kart time program
 
 #compile code:
-# "C:\Users\Asalt\AppData\Local\Programs\Python\Python313\python.exe" -m PyInstaller --onefile kart_sorter.py
+# "C:\Users\Asalt\AppData\Local\Programs\Python\Python313\python.exe" -m PyInstaller --onefile kart_sorter.py"
 
 
