@@ -70,11 +70,21 @@ def save_kart_tables(kart_data):
                     f.write(f"{rank:<8} {kart_no:<12} {avg_lap:<15.3f} {best_lap:<15.3f}\n")
     
     print(f"Results saved to: {output_filepath}")
+    return output_filepath
+
+def print_file(filepath):
+    """Automatically print the file using Windows default printer"""
+    try:
+        os.startfile(filepath, "print")
+        print(f"Sending {os.path.basename(filepath)} to printer...")
+    except Exception as e:
+        print(f"Error printing file: {e}")
 
 def main():
     kart_data = read_xls()
     if kart_data:
-        save_kart_tables(kart_data)
+        output_file = save_kart_tables(kart_data)
+        print_file(output_file)
     else:
         print("No kart data found.")
     input("\nPress Enter to exit...")
