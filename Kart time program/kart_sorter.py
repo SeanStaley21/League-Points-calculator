@@ -56,11 +56,11 @@ def save_kart_tables(kart_data):
     classes = ["Pro", "Junior", "Intermediate", "Other"]
     
     with open(output_filepath, 'w') as f:
+        f.write(f"{current_date}\n")
         for kart_class in classes:
             class_karts = [k for k in kart_data if k[3] == kart_class]
             if class_karts:
                 sorted_karts = sorted(class_karts, key=lambda x: x[2])
-                f.write(f"{current_date}\n")
                 f.write(f"{'='*60}\n")
                 f.write(f"{kart_class} Karts\n")
                 f.write(f"{'='*60}\n")
