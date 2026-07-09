@@ -3,8 +3,7 @@
 
   ## Pre requisites before running the program
   1) The program requires to get the user to save the excel file of the kart times from clubspeed
-  2) you then go into excel to convert it to a .csv file
-  3) save the file to your downloads folder
+  2) save the file to your downloads folder, named exactly `Excel.xls`
 
   ## Actual program
   you just run the .exe file that is in the dist folder (League-Points-calculator\Kart time program\dist)
