@@ -9,7 +9,7 @@ Last generated: 2026-07-09.
 
 This repo is a small toolkit used to run a go-kart racing league at what appears to be
 a "Full Throttle Adrenaline Park" location (based on metadata embedded in the xlsx
-file). It has two independent, **unrelated-in-code** parts:
+file). It has three parts, **unrelated in code** to each other:
 
 1. **`Kart time program/`** — a Python command-line tool (`kart_sorter.py`), packaged
    as a standalone Windows `.exe` via PyInstaller, that reads kart lap-time data
@@ -20,10 +20,14 @@ file). It has two independent, **unrelated-in-code** parts:
    league standings, weekly points, and divisions across a season. It is a template
    the league operator fills in by hand each week; it is **not** read or written by
    `kart_sorter.py`. There is no code integration between the two.
+3. **`league_points_app/`** — a new Flutter desktop app (in progress, not yet
+   committed to git) intended to replace the `league template.xlsx` workflow as the
+   source of truth for season standings. See §9 for details.
 
-Despite the repo's name ("League-Points-calculator"), there is currently no code that
-calculates league points — that logic lives entirely inside the Excel workbook's
-formulas. The Python program only sorts/ranks single-session kart lap times.
+Despite the repo's name ("League-Points-calculator"), there is currently no *shipped*
+code that calculates league points — that logic still lives entirely inside the Excel
+workbook's formulas today, though `league_points_app/` is being built to take over
+that role. The Python program only sorts/ranks single-session kart lap times.
 
 ---
 
@@ -35,13 +39,16 @@ League-Points-calculator/
 ├── README.md                          Usage instructions for the .exe (end-user facing)
 ├── wiki.md                            This document
 ├── league template.xlsx               Manual season/points-tracking workbook
-└── Kart time program/
-    ├── kart_sorter.py                 The actual source code (only .py file in repo)
-    ├── kart_sorter.spec               PyInstaller build spec for kart_sorter.py
-    ├── kart operation.csv             Sample lap-time data (NOT read by current code — see §5)
-    ├── build/                         PyInstaller intermediate build cache — gitignored, regenerated locally by `pyinstaller --onefile kart_sorter.py`
-    └── dist/                          PyInstaller output — what end users actually run
-        └── kart_sorter.exe            The compiled, distributable program (~53 MB)
+├── Kart time program/
+│   ├── kart_sorter.py                 The actual source code (only .py file in that program)
+│   ├── kart_sorter.spec               PyInstaller build spec for kart_sorter.py
+│   ├── kart operation.csv             Sample lap-time data (NOT read by current code — see §5)
+│   ├── build/                         PyInstaller intermediate build cache — gitignored, regenerated locally by `pyinstaller --onefile kart_sorter.py`
+│   └── dist/                          PyInstaller output — what end users actually run
+│       └── kart_sorter.exe            The compiled, distributable program (~53 MB)
+└── league_points_app/                 Flutter replacement app — NOT yet committed to git, see §9
+    ├── README.md                      Getting started + multi-Claude-session working rules
+    └── lib/                           App source (models/, data/, screens/, widgets/)
 ```
 
 As of the 2026-07-09 cleanup, the PyInstaller `build/` cache and the duplicate
@@ -226,3 +233,27 @@ Nothing else in the repo was found to be duplicated or dead: `kart_sorter.py`,
 7. Separately (no code link), the operator manually transcribes/keys weekly
    results and standings into `league template.xlsx` to track season-long league
    points across `Division 1/2/3` and `Juniors`.
+
+---
+
+## 9. `league_points_app/` — new Flutter replacement app (in progress)
+
+A Flutter desktop app (Windows-first, Android later), intended to eventually replace
+`league template.xlsx` as the source of truth for season standings. Document-based
+storage, like Microsoft Word: each season is a portable `.lpts` JSON file the user
+opens/saves via a File menu (`file_picker`), not a central app-owned database.
+
+Status as of 2026-07-09: substantial scaffolding already exists on disk
+(`lib/models/{division,racer,season,weekly_result}.dart`,
+`lib/data/{file_service,points_calculator,season_document}.dart`,
+`lib/screens/{home,season_setup,division,auto_import}_screen.dart`, plus widgets and
+unit tests) but the directory is **not yet committed to git** (`git status` shows it
+untracked). `Kart time program/` and `league template.xlsx` are explicitly out of
+scope for this app and remain untouched until/unless a later phase absorbs
+`kart_sorter.py`'s auto-import logic into it (the app already has an "Auto Import"
+tab placeholder reserved for that).
+
+See `league_points_app/README.md` for getting-started commands and — importantly —
+the working rules for running multiple Claude Code sessions on this app in parallel
+(one git worktree per session, file-ownership scoping, merge/test/wiki-update order)
+so concurrent sessions don't step on each other's edits or build artifacts.
