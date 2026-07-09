@@ -11,3 +11,6 @@
   it then organizes the fastest 'best lap' times towards the top and slowest to the bottom of the list
   prints all the data to the command line neatly using a python library called 'rich'
   then prompts the user to press 'enter' to exit
+
+  ## Documentation
+  [wiki.md](wiki.md) is the source of truth for how this repo works (code, file structure, build process, known issues). Whenever anything in this repo changes — code, files, structure, or workflow — update wiki.md in the same change so it stays current.
