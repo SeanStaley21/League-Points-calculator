@@ -138,7 +138,7 @@ manually/elsewhere.
    flash and close).
 
 ### 3.7 Trailing comments in the file (build notes, not code)
-The bottom of `kart_sorter.py` (lines 98–105) contains developer notes, not
+The bottom of `kart_sorter.py` (lines 127–131) contains developer notes, not
 functional code:
 ```
 File path: C:\Users\Asalt\OneDrive - Full Throttle Adrenaline Park\excel stuff\leagues\League-Points-calculator\Kart time program
@@ -245,10 +245,13 @@ Nothing else in the repo was found to be duplicated or dead: `kart_sorter.py`,
 3. Double-clicks `Kart time program/dist/kart_sorter.exe`.
 4. Program reads `~/Downloads/Excel.xls`, classifies each kart as Pro / Junior /
    Intermediate / Other by kart number, ranks each class by best lap time.
-5. Writes `~/Downloads/Kart_Results_<date>.txt` and immediately sends it to the
-   default printer.
-6. Console prompts "Press Enter to exit."
-7. Separately (no code link), the operator manually transcribes/keys weekly
+5. Program prompts the operator, one kart at a time, to type in that driver's
+   weight (blank = 0).
+6. Writes `~/Downloads/Kart_Results_<date>.txt` — the per-class lap-time tables
+   plus a final "Kart Pick Order" table (every kart, heaviest driver first) — and
+   immediately sends it to the default printer.
+7. Console prompts "Press Enter to exit."
+8. Separately (no code link), the operator manually transcribes/keys weekly
    results and standings into `league template.xlsx` to track season-long league
    points across `Division 1/2/3` and `Juniors`.
 
