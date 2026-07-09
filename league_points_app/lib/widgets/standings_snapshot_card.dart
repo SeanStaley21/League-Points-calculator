@@ -4,13 +4,18 @@ import '../models/division.dart';
 
 /// A small card on the Home screen showing a division's current leader.
 class StandingsSnapshotCard extends StatelessWidget {
-  const StandingsSnapshotCard({super.key, required this.division});
+  const StandingsSnapshotCard({
+    super.key,
+    required this.division,
+    required this.scoredPositions,
+  });
 
   final Division division;
+  final int scoredPositions;
 
   @override
   Widget build(BuildContext context) {
-    final leader = division.leader;
+    final leader = division.leader(scoredPositions);
     return Card(
       margin: const EdgeInsets.all(4),
       child: Padding(
@@ -28,7 +33,7 @@ class StandingsSnapshotCard extends StatelessWidget {
               const Text('No racers yet')
             else ...[
               Text(leader.fullName, style: Theme.of(context).textTheme.bodyLarge),
-              Text('${leader.totalPoints} pts • leader'),
+              Text('${leader.totalPoints(scoredPositions)} pts • leader'),
             ],
           ],
         ),

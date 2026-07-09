@@ -42,19 +42,37 @@ def read_xls():
         print(f"Error reading HTML table: {e}")
     return kart_data
 
+def get_weights(kart_data):
+    """Prompt the user for each driver's weight (by kart number). Leave blank for 0."""
+    print("\nEnter driver weight for each kart (leave blank for 0):")
+    weighted_data = []
+    for kart_no, avg_lap, best_lap, kart_class in kart_data:
+        while True:
+            raw = input(f"  Kart {kart_no} weight: ").strip()
+            if raw == "":
+                weight = 0.0
+                break
+            try:
+                weight = float(raw)
+                break
+            except ValueError:
+                print("    Please enter a number.")
+        weighted_data.append((kart_no, avg_lap, best_lap, kart_class, weight))
+    return weighted_data
+
 def save_kart_tables(kart_data):
     # Get the user's Downloads folder
     script_dir = os.path.join(os.path.expanduser("~"), "Downloads")
     current_date = datetime.now().strftime("%m %d %Y")
     output_filename = f"Kart_Results_{current_date}.txt"
     output_filepath = os.path.join(script_dir, output_filename)
-    
+
     # Delete the file if it already exists
     if os.path.exists(output_filepath):
         os.remove(output_filepath)
-    
+
     classes = ["Pro", "Junior", "Intermediate", "Other"]
-    
+
     with open(output_filepath, 'w') as f:
         f.write(f"{current_date}\n")
         for kart_class in classes:
@@ -66,9 +84,19 @@ def save_kart_tables(kart_data):
                 f.write(f"{'='*60}\n")
                 f.write(f"{'Rank':<8} {'Kart No':<12} {'Avg Lap':<15} {'Best Lap':<15}\n")
                 f.write(f"{'-'*60}\n")
-                for rank, (kart_no, avg_lap, best_lap, _) in enumerate(sorted_karts, start=1):
+                for rank, (kart_no, avg_lap, best_lap, _, _weight) in enumerate(sorted_karts, start=1):
                     f.write(f"{rank:<8} {kart_no:<12} {avg_lap:<15.3f} {best_lap:<15.3f}\n")
-    
+
+        # Kart Pick Order: every kart, heaviest driver first
+        pick_order = sorted(kart_data, key=lambda x: x[4], reverse=True)
+        f.write(f"{'='*60}\n")
+        f.write("Kart Pick Order\n")
+        f.write(f"{'='*60}\n")
+        f.write(f"{'Rank':<8} {'Kart No':<12} {'Weight':<15} {'Class':<15}\n")
+        f.write(f"{'-'*60}\n")
+        for rank, (kart_no, avg_lap, best_lap, kart_class, weight) in enumerate(pick_order, start=1):
+            f.write(f"{rank:<8} {kart_no:<12} {weight:<15.1f} {kart_class:<15}\n")
+
     print(f"Results saved to: {output_filepath}")
     return output_filepath
 
@@ -83,6 +111,7 @@ def print_file(filepath):
 def main():
     kart_data = read_xls()
     if kart_data:
+        kart_data = get_weights(kart_data)
         output_file = save_kart_tables(kart_data)
         print_file(output_file)
     else:

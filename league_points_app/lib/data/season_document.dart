@@ -14,7 +14,8 @@ import 'file_service.dart';
 class SeasonDocument extends ChangeNotifier {
   SeasonDocument({FileService? fileService})
       : _fileService = fileService ?? FileService(),
-        _season = Season.blankTemplate(weekCount: defaultWeekCount);
+        _season = Season.blankTemplate(
+            weekCount: defaultWeekCount, scoredPositions: defaultScoredPositions);
 
   final FileService _fileService;
 
@@ -42,7 +43,8 @@ class SeasonDocument extends ChangeNotifier {
   // --- File lifecycle ---------------------------------------------------
 
   void newSeason() {
-    _season = Season.blankTemplate(weekCount: defaultWeekCount);
+    _season = Season.blankTemplate(
+        weekCount: defaultWeekCount, scoredPositions: defaultScoredPositions);
     _currentFilePath = null;
     _hasUnsavedChanges = false;
     notifyListeners();
@@ -86,11 +88,13 @@ class SeasonDocument extends ChangeNotifier {
     DateTime? startDate,
     DateTime? endDate,
     int? weekCount,
+    int? scoredPositions,
   }) {
     var updated = _season.copyWith(
       name: name,
       startDate: startDate,
       endDate: endDate,
+      scoredPositions: scoredPositions,
     );
     if (weekCount != null && weekCount != _season.weekCount) {
       updated = updated.copyWith(

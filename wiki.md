@@ -59,8 +59,7 @@ As of the 2026-07-09 cleanup, the PyInstaller `build/` cache and the duplicate
 
 ## 3. `kart_sorter.py` — how it actually works
 
-This is the only source file in the repo (94 lines of logic + a few trailing
-comments). It has four functions and a `main()`.
+This is the only source file in the repo. It has five functions and a `main()`.
 
 ### 3.1 `get_kart_class(kart_no)`
 Classifies a kart number into a league division purely by numeric range:
@@ -95,7 +94,21 @@ manually/elsewhere.
 - If the file isn't found or another error occurs while parsing, it prints an error
   and returns whatever it collected (possibly an empty list).
 
-### 3.3 `save_kart_tables(kart_data)`
+### 3.3 `get_weights(kart_data)`
+- Runs interactively in the console, one prompt per kart in `kart_data` (in the
+  order they were parsed from `Excel.xls`, not sorted).
+- Prompts `Kart <no> weight: ` and reads a typed number; an empty response (just
+  pressing Enter) defaults the weight to `0.0`. Non-numeric input re-prompts until
+  a valid number or a blank is given.
+- Returns the same list of tuples with the weight appended, i.e. each kart's tuple
+  grows from `(kart_no, avg_lap, best_lap, kart_class)` to
+  `(kart_no, avg_lap, best_lap, kart_class, weight)`.
+- There is no persistence of weights between runs — they're re-entered by hand
+  every time the program is run, and there's no driver-name field to attach them
+  to, only the kart number for that session.
+
+### 3.4 `save_kart_tables(kart_data)`
+- Takes the weight-augmented tuples from `get_weights`.
 - Writes output to `~/Downloads/Kart_Results_<MM DD YYYY>.txt` (today's date, e.g.
   `Kart_Results_07 09 2026.txt`), deleting any existing file at that path first.
 - For each class in the fixed order `Pro, Junior, Intermediate, Other`:
@@ -104,22 +117,27 @@ manually/elsewhere.
     first.
   - Writes a banner + a fixed-width table (`Rank`, `Kart No`, `Avg Lap`, `Best Lap`)
     to the text file.
+- After all class sections, writes one final **`Kart Pick Order`** section: every
+  kart from `kart_data` (regardless of class), sorted descending by weight (index
+  `4`) — heaviest driver first — as a `Rank`, `Kart No`, `Weight`, `Class` table.
+  This is meant to drive the physical order in which drivers pick their karts.
 - Returns the output filepath.
 
-### 3.4 `print_file(filepath)`
+### 3.5 `print_file(filepath)`
 - Calls `os.startfile(filepath, "print")` — a Windows-only API that hands the file
   to whatever application is associated with `.txt` and tells it to print using the
   **default printer**, with no print-preview or confirmation step.
 
-### 3.5 `main()`
+### 3.6 `main()`
 1. `read_xls()` → get parsed kart data.
-2. If any data was found: `save_kart_tables()` then immediately `print_file()`.
+2. If any data was found: `get_weights()` (interactive prompts) → `save_kart_tables()`
+   → immediately `print_file()`.
 3. If no data was found: print `"No kart data found."`.
 4. `input("\nPress Enter to exit...")` — keeps the console window open (this is a
    double-clicked `.exe`, not run from a terminal, so without this the window would
    flash and close).
 
-### 3.6 Trailing comments in the file (build notes, not code)
+### 3.7 Trailing comments in the file (build notes, not code)
 The bottom of `kart_sorter.py` (lines 98–105) contains developer notes, not
 functional code:
 ```

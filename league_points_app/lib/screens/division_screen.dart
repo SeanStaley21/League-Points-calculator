@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/points_calculator.dart';
 import '../data/season_document.dart';
 import '../models/racer.dart';
 import '../widgets/confirm_dialog.dart';
@@ -68,6 +69,7 @@ class DivisionScreen extends StatelessWidget {
     final doc = context.watch<SeasonDocument>();
     final division = doc.season.divisions[divisionIndex];
     final weekCount = doc.season.weekCount;
+    final scoredPositions = doc.season.scoredPositions;
     final racers = List.of(division.racers)
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
@@ -111,7 +113,8 @@ class DivisionScreen extends StatelessWidget {
                       ],
                       rows: [
                         for (var racerIndex = 0; racerIndex < racers.length; racerIndex++)
-                          _buildRow(context, racerIndex, racers[racerIndex], weekCount),
+                          _buildRow(context, racerIndex, racers[racerIndex], weekCount,
+                              scoredPositions),
                       ],
                     ),
                   ),
@@ -121,7 +124,8 @@ class DivisionScreen extends StatelessWidget {
     );
   }
 
-  DataRow _buildRow(BuildContext context, int racerIndex, Racer racer, int weekCount) {
+  DataRow _buildRow(BuildContext context, int racerIndex, Racer racer, int weekCount,
+      int scoredPositions) {
     final doc = context.read<SeasonDocument>();
     return DataRow(cells: [
       DataCell(Text(racer.fullName)),
@@ -130,14 +134,14 @@ class DivisionScreen extends StatelessWidget {
           finishPosition: racer.weeklyResults
               .firstWhere((r) => r.weekNumber == week)
               .finishPosition,
-          points: racer.weeklyResults
-              .firstWhere((r) => r.weekNumber == week)
-              .points,
+          points: pointsForResult(
+              racer.weeklyResults.firstWhere((r) => r.weekNumber == week),
+              scoredPositions),
           onChanged: (position) => doc.updateWeeklyFinishPosition(
               divisionIndex, racerIndex, week, position),
         )),
       DataCell(Text(
-        '${racer.totalPoints}',
+        '${racer.totalPoints(scoredPositions)}',
         style: const TextStyle(fontWeight: FontWeight.bold),
       )),
       DataCell(PopupMenuButton<String>(

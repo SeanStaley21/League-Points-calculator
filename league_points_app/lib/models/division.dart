@@ -12,9 +12,10 @@ class Division {
   });
 
   /// The racer currently leading this division by total points, if any.
-  Racer? get leader {
+  Racer? leader(int scoredPositions) {
     if (racers.isEmpty) return null;
-    return racers.reduce((a, b) => a.totalPoints >= b.totalPoints ? a : b);
+    return racers.reduce((a, b) =>
+        a.totalPoints(scoredPositions) >= b.totalPoints(scoredPositions) ? a : b);
   }
 
   Division copyWith({

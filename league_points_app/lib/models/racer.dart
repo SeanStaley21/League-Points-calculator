@@ -17,8 +17,10 @@ class Racer {
   String get fullName => '$firstName $lastName';
 
   /// Total points across all weeks, with the lowest-scoring week dropped
-  /// per league rules. See [computeTotal].
-  int get totalPoints => computeTotal(weeklyResults);
+  /// per league rules. [scoredPositions] is the season's configured number
+  /// of scored finish positions. See [computeTotal].
+  int totalPoints(int scoredPositions) =>
+      computeTotal(weeklyResults, scoredPositions);
 
   Racer copyWith({
     String? firstName,

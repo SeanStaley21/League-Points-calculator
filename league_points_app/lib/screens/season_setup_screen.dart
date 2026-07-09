@@ -15,6 +15,7 @@ class SeasonSetupScreen extends StatefulWidget {
 class _SeasonSetupScreenState extends State<SeasonSetupScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _weekCountController;
+  late final TextEditingController _scoredPositionsController;
   late DateTime _startDate;
   DateTime? _endDate;
   final _dateFormat = DateFormat.yMMMd();
@@ -26,6 +27,8 @@ class _SeasonSetupScreenState extends State<SeasonSetupScreen> {
     final season = context.read<SeasonDocument>().season;
     _nameController = TextEditingController(text: season.name);
     _weekCountController = TextEditingController(text: '${season.weekCount}');
+    _scoredPositionsController =
+        TextEditingController(text: '${season.scoredPositions}');
     _startDate = season.startDate;
     _endDate = season.endDate;
   }
@@ -34,6 +37,7 @@ class _SeasonSetupScreenState extends State<SeasonSetupScreen> {
   void dispose() {
     _nameController.dispose();
     _weekCountController.dispose();
+    _scoredPositionsController.dispose();
     _newDivisionController.dispose();
     super.dispose();
   }
@@ -47,6 +51,7 @@ class _SeasonSetupScreenState extends State<SeasonSetupScreen> {
 
   void _saveSeasonInfo() {
     final weekCount = int.tryParse(_weekCountController.text);
+    final scoredPositions = int.tryParse(_scoredPositionsController.text);
     context.read<SeasonDocument>().updateSeasonInfo(
           name: _nameController.text.trim().isEmpty
               ? null
@@ -54,6 +59,7 @@ class _SeasonSetupScreenState extends State<SeasonSetupScreen> {
           startDate: _startDate,
           endDate: _endDate,
           weekCount: weekCount,
+          scoredPositions: scoredPositions,
         );
   }
 
@@ -116,6 +122,20 @@ class _SeasonSetupScreenState extends State<SeasonSetupScreen> {
           TextField(
             controller: _weekCountController,
             decoration: const InputDecoration(labelText: 'Number of weeks'),
+            keyboardType: TextInputType.number,
+            onSubmitted: (_) => _saveSeasonInfo(),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _scoredPositionsController,
+            decoration: const InputDecoration(
+              labelText: 'Scored positions',
+              helperText:
+                  'How many finish positions score points (e.g. 13 covers '
+                  '1st-13th). Increase this if a division has more racers '
+                  'than that.',
+              helperMaxLines: 2,
+            ),
             keyboardType: TextInputType.number,
             onSubmitted: (_) => _saveSeasonInfo(),
           ),

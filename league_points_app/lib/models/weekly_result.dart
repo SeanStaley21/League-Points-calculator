@@ -1,26 +1,3 @@
-/// Finish position -> points, matching the league's "Points calculator"
-/// sheet. Positions outside this table (or no recorded finish) score 0.
-const Map<int, int> pointsByFinishPosition = {
-  1: 14,
-  2: 12,
-  3: 11,
-  4: 10,
-  5: 9,
-  6: 8,
-  7: 7,
-  8: 6,
-  9: 5,
-  10: 4,
-  11: 3,
-  12: 2,
-  13: 1,
-};
-
-int pointsForFinishPosition(int? position) {
-  if (position == null) return 0;
-  return pointsByFinishPosition[position] ?? 0;
-}
-
 class WeeklyResult {
   final int weekNumber;
   final int? finishPosition;
@@ -41,10 +18,6 @@ class WeeklyResult {
     this.weight,
     this.kartNumber,
   });
-
-  /// Points for this week, derived from [finishPosition] via the league's
-  /// points table. Never stored directly, so it can't drift out of sync.
-  int get points => pointsForFinishPosition(finishPosition);
 
   WeeklyResult copyWith({
     int? finishPosition,

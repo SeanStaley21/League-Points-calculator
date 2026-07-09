@@ -66,7 +66,10 @@ class HomeScreen extends StatelessWidget {
                     for (final division in season.divisions)
                       SizedBox(
                         width: 200,
-                        child: StandingsSnapshotCard(division: division),
+                        child: StandingsSnapshotCard(
+                          division: division,
+                          scoredPositions: season.scoredPositions,
+                        ),
                       ),
                   ],
                 ),

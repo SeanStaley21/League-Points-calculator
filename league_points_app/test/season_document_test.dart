@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:league_points_app/data/points_calculator.dart';
 import 'package:league_points_app/models/division.dart';
 import 'package:league_points_app/models/racer.dart';
 import 'package:league_points_app/models/season.dart';
@@ -13,6 +14,7 @@ void main() {
       startDate: DateTime(2026, 6, 1),
       endDate: DateTime(2026, 7, 27),
       weekCount: 8,
+      scoredPositions: 13,
       divisions: [
         Division(
           name: 'Pro 1',
@@ -43,18 +45,20 @@ void main() {
     expect(restored.startDate, season.startDate);
     expect(restored.endDate, season.endDate);
     expect(restored.weekCount, season.weekCount);
+    expect(restored.scoredPositions, 13);
     expect(restored.divisions.length, 1);
     expect(restored.divisions[0].name, 'Pro 1');
     expect(restored.divisions[0].racers.length, 1);
     final racer = restored.divisions[0].racers[0];
     expect(racer.fullName, 'Jane Doe');
     // Lowest week (the missed week, 0 pts) is dropped: total = 14.
-    expect(racer.totalPoints, 14);
+    expect(racer.totalPoints(restored.scoredPositions), 14);
     expect(racer.weeklyResults[0].finishPosition, 1);
-    expect(racer.weeklyResults[1].points, 0);
+    expect(pointsForResult(racer.weeklyResults[1], restored.scoredPositions), 0);
   });
 
   test('Division.leader picks the racer with the highest total points', () {
+    const scoredPositions = 13;
     final division = Division(
       name: 'Pro 1',
       racers: [
@@ -77,6 +81,6 @@ void main() {
       ],
     );
 
-    expect(division.leader?.fullName, 'High Scorer');
+    expect(division.leader(scoredPositions)?.fullName, 'High Scorer');
   });
 }
