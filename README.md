@@ -7,9 +7,9 @@
 
   ## Actual program
   you just run the .exe file that is in the dist folder (League-Points-calculator\Kart time program\dist)
-  the program sorts the .csv data into groups of Pros, Intermediates, and Juniors
-  it then organizes the fastest 'best lap' times towards the top and slowest to the bottom of the list
-  prints all the data to the command line neatly using a python library called 'rich'
+  the program sorts the kart data into groups of Pros, Juniors, and Intermediates (by kart number)
+  it then organizes the fastest 'best lap' times towards the top and slowest to the bottom of the list within each group
+  saves the results to a .txt file in your downloads folder and automatically sends it to your default printer
   then prompts the user to press 'enter' to exit
 
   ## Documentation
