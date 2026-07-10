@@ -1,2 +1,3 @@
 # PyInstaller build cache (regenerate with: pyinstaller --onefile kart_sorter.py)
 Kart time program/build/
+Kart time program/__pycache__/
