@@ -243,17 +243,70 @@ A Flutter desktop app (Windows-first, Android later), intended to eventually rep
 storage, like Microsoft Word: each season is a portable `.lpts` JSON file the user
 opens/saves via a File menu (`file_picker`), not a central app-owned database.
 
-Status as of 2026-07-09: substantial scaffolding already exists on disk
-(`lib/models/{division,racer,season,weekly_result}.dart`,
+Status as of 2026-07-09: committed to git (`lib/models/{division,racer,season,weekly_result}.dart`,
 `lib/data/{file_service,points_calculator,season_document}.dart`,
 `lib/screens/{home,season_setup,division,auto_import}_screen.dart`, plus widgets and
-unit tests) but the directory is **not yet committed to git** (`git status` shows it
-untracked). `Kart time program/` and `league template.xlsx` are explicitly out of
+unit tests). `Kart time program/` and `league template.xlsx` are explicitly out of
 scope for this app and remain untouched until/unless a later phase absorbs
-`kart_sorter.py`'s auto-import logic into it (the app already has an "Auto Import"
-tab placeholder reserved for that).
+`kart_sorter.py`'s auto-import logic into it (the app already has an Auto Import
+placeholder screen reserved for that — see §9.1 for where it now lives in the UI).
 
 See `league_points_app/README.md` for getting-started commands and — importantly —
 the working rules for running multiple Claude Code sessions on this app in parallel
 (one git worktree per session, file-ownership scoping, merge/test/wiki-update order)
 so concurrent sessions don't step on each other's edits or build artifacts.
+
+### 9.1 Home screen navigation (changed 2026-07-09)
+
+`HomeScreen` no longer uses a `TabBar`/`TabBarView` to switch between divisions
+and the placeholder auto-import screen. The tab row was visually just a strip of
+empty underlines once there were several divisions, and made "Auto Import" look
+like a per-week worksheet instead of a one-off file action. It now works like a
+normal document app:
+
+- **Auto Import moved into the File menu** (`AppMenuBar`, `lib/widgets/app_menu_bar.dart`)
+  as an "Auto Import..." item below a divider, under New/Open/Save/Save As. Selecting
+  it pushes a `MaterialPageRoute` to a `Scaffold` wrapping the unchanged
+  `AutoImportScreen` placeholder.
+- **Division cards on the home screen are now the navigation**, not just a read-only
+  snapshot: `StandingsSnapshotCard` (`lib/widgets/standings_snapshot_card.dart`) gained
+  an optional `onTap` callback, wired in `HomeScreen` to push a `MaterialPageRoute` to a
+  `Scaffold(appBar: AppBar(title: Text(division.name)), body: DivisionScreen(...))`.
+  Tapping a division's card is now how you open its weekly-points table; there is no
+  tab bar anymore. The cards render in a `GridView` (`SliverGridDelegateWithMaxCrossAxisExtent`,
+  220px tiles) instead of a fixed-height horizontal `ListView`, since they're no longer
+  paired with a tab strip below them.
+
+`DivisionScreen` itself is unchanged (still addressed by `divisionIndex`); it's just
+hosted in a pushed route instead of a `TabBarView` page now.
+
+### 9.2 Driver weight input and Kart Pick Order screen (added 2026-07-09)
+
+Adds the ability to record each racer's weight per week and see a cross-division
+pick order by weight — this replaces an earlier attempt at the same feature that
+had been built into `kart_sorter.py` (see the now-reverted §3/§8 history); it
+belongs here instead since weight is a per-racer/per-week fact that lives in the
+season document, not something the single-session lap-time sorter has any
+concept of.
+
+- **`WeeklyResult.weight`** already existed on the model (mirroring the xlsx
+  template's per-week `Weight` column) but had no write path. `SeasonDocument`
+  gained `updateWeeklyWeight(divisionIndex, racerIndex, weekNumber, weight)`
+  (`lib/data/season_document.dart`), and `WeeklyResult.copyWith` gained a
+  `clearWeight` flag (mirroring the existing `clearFinishPosition` pattern) so
+  passing `null` actually clears a previously recorded weight instead of being a
+  no-op.
+- **`WeightCell`** (`lib/widgets/weight_cell.dart`) is a small inline-editable
+  numeric text field, styled like the existing `WeekPositionCell` (commit on
+  blur/submit, syncs back if the underlying value changes while unfocused).
+- **`KartPickOrderScreen`** (`lib/screens/kart_pick_order_screen.dart`) is a new
+  screen reachable from a "Kart Pick Order" (`Icons.scale_outlined`) icon button
+  on the Home screen, next to the Season Setup gear (see §9.1 for where Home
+  screen actions live). It has a Week dropdown in its `AppBar`, and lists every
+  racer across every division for that week — flattened into one list, sorted
+  descending by weight so the heaviest driver is first — since kart pick order
+  happens once across the whole session, not per division. Editing a weight via
+  `WeightCell` re-sorts the list live.
+- Covered by `test/season_document_test.dart` (the update/clear path) and
+  `test/kart_pick_order_screen_test.dart` (cross-division sort order, live
+  re-sort on edit).

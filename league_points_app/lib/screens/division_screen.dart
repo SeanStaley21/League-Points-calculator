@@ -8,8 +8,7 @@ import '../widgets/confirm_dialog.dart';
 import '../widgets/week_position_cell.dart';
 
 /// Editable weekly-points table for one division, addressed by its index
-/// in Season.divisions (stable for the lifetime of a single screen build,
-/// since the TabBarView rebuilds tabs from the same list order).
+/// in Season.divisions (stable for the lifetime of a single screen build).
 class DivisionScreen extends StatelessWidget {
   const DivisionScreen({super.key, required this.divisionIndex});
 

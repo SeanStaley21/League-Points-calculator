@@ -199,4 +199,16 @@ class SeasonDocument extends ChangeNotifier {
     divisions[divisionIndex] = divisions[divisionIndex].copyWith(racers: racers);
     _setSeason(_season.copyWith(divisions: divisions));
   }
+
+  /// Sets a racer's weight for a given week, used to order who picks a kart
+  /// first (heaviest first) before that week's heats. Pass null to clear it.
+  void updateWeeklyWeight(
+      int divisionIndex, int racerIndex, int weekNumber, double? weight) {
+    final divisions = List<Division>.from(_season.divisions);
+    final racers = List<Racer>.from(divisions[divisionIndex].racers);
+    racers[racerIndex] = racers[racerIndex].withUpdatedWeek(
+        weekNumber, (r) => r.copyWith(weight: weight, clearWeight: weight == null));
+    divisions[divisionIndex] = divisions[divisionIndex].copyWith(racers: racers);
+    _setSeason(_season.copyWith(divisions: divisions));
+  }
 }

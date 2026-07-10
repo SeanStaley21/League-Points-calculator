@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:league_points_app/data/points_calculator.dart';
+import 'package:league_points_app/data/season_document.dart';
 import 'package:league_points_app/models/division.dart';
 import 'package:league_points_app/models/racer.dart';
 import 'package:league_points_app/models/season.dart';
@@ -82,5 +83,17 @@ void main() {
     );
 
     expect(division.leader(scoredPositions)?.fullName, 'High Scorer');
+  });
+
+  test('updateWeeklyWeight sets and clears a racer\'s weight for one week', () {
+    final doc = SeasonDocument();
+    doc.addDivision('Pro 1');
+    doc.addRacer(0, firstName: 'Jane', lastName: 'Doe');
+
+    doc.updateWeeklyWeight(0, 0, 1, 180.5);
+    expect(doc.season.divisions[0].racers[0].weeklyResults[0].weight, 180.5);
+
+    doc.updateWeeklyWeight(0, 0, 1, null);
+    expect(doc.season.divisions[0].racers[0].weeklyResults[0].weight, isNull);
   });
 }

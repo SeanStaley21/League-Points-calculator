@@ -8,34 +8,40 @@ class StandingsSnapshotCard extends StatelessWidget {
     super.key,
     required this.division,
     required this.scoredPositions,
+    this.onTap,
   });
 
   final Division division;
   final int scoredPositions;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final leader = division.leader(scoredPositions);
     return Card(
       margin: const EdgeInsets.all(4),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              division.name,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            if (leader == null)
-              const Text('No racers yet')
-            else ...[
-              Text(leader.fullName, style: Theme.of(context).textTheme.bodyLarge),
-              Text('${leader.totalPoints(scoredPositions)} pts • leader'),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                division.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              if (leader == null)
+                const Text('No racers yet')
+              else ...[
+                Text(leader.fullName, style: Theme.of(context).textTheme.bodyLarge),
+                Text('${leader.totalPoints(scoredPositions)} pts • leader'),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

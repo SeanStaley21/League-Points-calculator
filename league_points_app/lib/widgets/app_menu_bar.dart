@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../data/season_document.dart';
+import '../screens/auto_import_screen.dart';
 import 'confirm_dialog.dart';
 
-enum _FileMenuAction { newSeason, open, save, saveAs }
+enum _FileMenuAction { newSeason, open, save, saveAs, autoImport }
 
 /// The File > New/Open/Save/Save As menu, plus the current file name and
 /// unsaved-changes indicator, shown at the top of every screen.
@@ -36,6 +37,15 @@ class AppMenuBar extends StatelessWidget implements PreferredSizeWidget {
         await doc.save();
       case _FileMenuAction.saveAs:
         await doc.saveAs();
+      case _FileMenuAction.autoImport:
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => Scaffold(
+              appBar: AppBar(title: const Text('Auto Import')),
+              body: const AutoImportScreen(),
+            ),
+          ),
+        );
     }
   }
 
@@ -78,6 +88,14 @@ class AppMenuBar extends StatelessWidget implements PreferredSizeWidget {
               child: ListTile(
                 leading: Icon(Icons.save_as_outlined),
                 title: Text('Save As...'),
+              ),
+            ),
+            PopupMenuDivider(),
+            PopupMenuItem(
+              value: _FileMenuAction.autoImport,
+              child: ListTile(
+                leading: Icon(Icons.upload_file_outlined),
+                title: Text('Auto Import...'),
               ),
             ),
           ],

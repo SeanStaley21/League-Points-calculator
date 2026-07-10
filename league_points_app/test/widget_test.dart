@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -14,11 +15,24 @@ void main() {
     );
 
     expect(find.text('New Season'), findsOneWidget);
-    expect(find.text('Auto Import'), findsOneWidget);
     expect(find.text('Untitled.lpts'), findsOneWidget);
   });
 
-  testWidgets('Adding a division shows it as a tab', (tester) async {
+  testWidgets('File menu includes Auto Import', (tester) async {
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => SeasonDocument(),
+        child: const LeaguePointsApp(),
+      ),
+    );
+
+    await tester.tap(find.byIcon(Icons.menu));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Auto Import...'), findsOneWidget);
+  });
+
+  testWidgets('Adding a division shows it as a standings card', (tester) async {
     final doc = SeasonDocument();
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
