@@ -9,8 +9,7 @@
   you just run the .exe file that is in the dist folder (League-Points-calculator\Kart time program\dist)
   the program sorts the kart data into groups of Pros, Juniors, and Intermediates (by kart number)
   it then organizes the fastest 'best lap' times towards the top and slowest to the bottom of the list within each group
-  it will then ask you, one kart at a time, to type in that driver's weight (press enter to skip/leave as 0)
-  saves the results to a .txt file in your downloads folder, including a 'Kart Pick Order' section listing every kart heaviest-driver-first, and automatically sends it to your default printer
+  saves the results to a .txt file in your downloads folder and automatically sends it to your default printer
   then prompts the user to press 'enter' to exit
 
   ## Documentation
