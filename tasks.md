@@ -3,7 +3,7 @@
 Recorded 2026-07-09 from user requests. Not yet implemented — plan/implement each
 one as its own change, update wiki.md alongside it, and check it off here when done.
 
-## Priority 1: Dev launcher batch file (temporary)
+## Priority 1: Dev launcher batch file (temporary) — DONE 2026-07-11
 
 Create a `.bat` file (e.g. `run_app.bat` in `league_points_app/`) that runs the
 app with a double-click, so the user doesn't have to type `flutter pub get` /
@@ -14,7 +14,7 @@ app with a double-click, so the user doesn't have to type `flutter pub get` /
   `Kart time program/dist/kart_sorter.exe` is distributed today), delete this
   batch file. It's a dev convenience, not a shipping artifact.
 
-## 1. Default racer weight to 0
+## 1. Default racer weight to 0 — DONE 2026-07-11
 
 When adding a racer to a division's roster, the weight field should default to
 `0` if the operator leaves it blank, instead of being unset/null.
@@ -22,13 +22,13 @@ When adding a racer to a division's roster, the weight field should default to
 - Relevant files: `lib/screens/division_screen.dart` (`_showRacerDialog`),
   `lib/data/season_document.dart` (`addRacer`), `lib/models/weekly_result.dart`
   (`weight`).
-- Open question: is this the per-week weight (`WeeklyResult.weight`, entered
-  today via the Kart Pick Order screen's `WeightCell`) or a new season-long
-  default weight set once at roster-add time and copied into each week? The
-  request phrasing ("when you add someone to the roster") suggests the latter —
-  confirm before implementing.
+- Resolved: confirmed with the user this is a new season-long default weight
+  (`Racer.weight`), set once via a "Weight" field in the Add/Edit Racer
+  dialog and copied into every week's `WeeklyResult.weight` at roster-add
+  time — not the per-week weight entered later via the Kart Pick Order
+  screen's `WeightCell`, which is unchanged and still separately editable.
 
-## 2. Weekly standings table on the Home screen
+## 2. Weekly standings table on the Home screen — DONE 2026-07-11
 
 Below the division cards on the Home screen (see attached screenshot,
 `Screenshot 2026-07-09 221918.png`), add:
@@ -45,8 +45,12 @@ Below the division cards on the Home screen (see attached screenshot,
   - Two columns: **Name** | **Finish** (finish position for that week).
 - Relevant files: `lib/screens/home_screen.dart`, `lib/models/division.dart`,
   `lib/models/racer.dart`, `lib/models/weekly_result.dart`.
+- Resolved: "TBD" persistence question resolved as local, non-persisted
+  widget state (resets to week 1 on app restart, survives navigating in/out
+  of a division). See wiki.md §9.4 for the reasoning and full implementation
+  notes (`lib/widgets/weekly_standings_section.dart`).
 
-## 3. Additional optional racer fields + auto-import name matching
+## 3. Additional optional racer fields + auto-import name matching — PARTIAL 2026-07-11
 
 In the "Add Racer" dialog, add optional fields:
 
@@ -64,6 +68,9 @@ placeholder, and the `kartNumber`/lap-time fields already on `WeeklyResult`).
 - Relevant files: `lib/models/racer.dart`, `lib/screens/division_screen.dart`
   (`_showRacerDialog`), `lib/data/season_document.dart` (`addRacer`,
   `updateRacerInfo`), `lib/screens/auto_import_screen.dart`.
-- Blocked on: the media/ example file not uploaded yet — confirm the racer-name
-  matching format once it's available before wiring up auto-import itself (the
-  new fields on the model/dialog can be added now regardless).
+- Done: `Racer.importName`/`phone`/`email` fields, wired through
+  `addRacer`/`updateRacerInfo`, and added to the Add/Edit Racer dialog. See
+  wiki.md §9.6.
+- Still blocked on: the media/ example file not uploaded yet, so
+  `auto_import_screen.dart` matching/import logic is not implemented —
+  confirm the racer-name matching format once the file is available.

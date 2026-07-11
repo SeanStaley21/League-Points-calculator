@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../data/season_document.dart';
+import '../models/kart.dart';
 import '../widgets/confirm_dialog.dart';
 
 class SeasonSetupScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class _SeasonSetupScreenState extends State<SeasonSetupScreen> {
   DateTime? _endDate;
   final _dateFormat = DateFormat.yMMMd();
   final _newDivisionController = TextEditingController();
+  KartClass _newDivisionKartClass = KartClass.pro;
 
   @override
   void initState() {
@@ -45,7 +47,7 @@ class _SeasonSetupScreenState extends State<SeasonSetupScreen> {
   void _addDivision() {
     final name = _newDivisionController.text.trim();
     if (name.isEmpty) return;
-    context.read<SeasonDocument>().addDivision(name);
+    context.read<SeasonDocument>().addDivision(name, kartClass: _newDivisionKartClass);
     _newDivisionController.clear();
   }
 
@@ -162,6 +164,18 @@ class _SeasonSetupScreenState extends State<SeasonSetupScreen> {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  DropdownButton<KartClass>(
+                    value: divisions[i].kartClass,
+                    items: const [
+                      DropdownMenuItem(value: KartClass.pro, child: Text('Pro karts')),
+                      DropdownMenuItem(value: KartClass.junior, child: Text('Junior karts')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        context.read<SeasonDocument>().updateDivisionClass(i, value);
+                      }
+                    },
+                  ),
                   IconButton(
                     icon: const Icon(Icons.edit_outlined),
                     tooltip: 'Rename',
@@ -184,6 +198,17 @@ class _SeasonSetupScreenState extends State<SeasonSetupScreen> {
                   decoration: const InputDecoration(labelText: 'New division name'),
                   onSubmitted: (_) => _addDivision(),
                 ),
+              ),
+              const SizedBox(width: 8),
+              DropdownButton<KartClass>(
+                value: _newDivisionKartClass,
+                items: const [
+                  DropdownMenuItem(value: KartClass.pro, child: Text('Pro karts')),
+                  DropdownMenuItem(value: KartClass.junior, child: Text('Junior karts')),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => _newDivisionKartClass = value);
+                },
               ),
               const SizedBox(width: 8),
               FilledButton(

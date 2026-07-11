@@ -3,11 +3,15 @@ import 'package:provider/provider.dart';
 
 import 'app.dart';
 import 'data/season_document.dart';
+import 'data/theme_controller.dart';
 
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => SeasonDocument(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => SeasonDocument()),
+        ChangeNotifierProvider(create: (_) => ThemeController()),
+      ],
       child: const LeaguePointsApp(),
     ),
   );

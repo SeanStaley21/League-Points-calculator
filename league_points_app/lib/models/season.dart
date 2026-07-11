@@ -1,4 +1,5 @@
 import 'division.dart';
+import 'kart.dart';
 
 class Season {
   final String name;
@@ -11,6 +12,10 @@ class Season {
   final int scoredPositions;
   final List<Division> divisions;
 
+  /// Season-wide pool of physical karts (see [Kart]), shared by all
+  /// divisions of the same [KartClass] for Kart Pick Order.
+  final List<Kart> kartPool;
+
   const Season({
     required this.name,
     required this.startDate,
@@ -18,6 +23,7 @@ class Season {
     required this.weekCount,
     required this.scoredPositions,
     this.divisions = const [],
+    this.kartPool = const [],
   });
 
   factory Season.blankTemplate({required int weekCount, required int scoredPositions}) {
@@ -37,6 +43,7 @@ class Season {
     int? weekCount,
     int? scoredPositions,
     List<Division>? divisions,
+    List<Kart>? kartPool,
   }) {
     return Season(
       name: name ?? this.name,
@@ -45,6 +52,7 @@ class Season {
       weekCount: weekCount ?? this.weekCount,
       scoredPositions: scoredPositions ?? this.scoredPositions,
       divisions: divisions ?? this.divisions,
+      kartPool: kartPool ?? this.kartPool,
     );
   }
 
@@ -55,6 +63,7 @@ class Season {
         'weekCount': weekCount,
         'scoredPositions': scoredPositions,
         'divisions': divisions.map((d) => d.toJson()).toList(),
+        'kartPool': kartPool.map((k) => k.toJson()).toList(),
       };
 
   factory Season.fromJson(Map<String, dynamic> json) {
@@ -68,6 +77,9 @@ class Season {
       scoredPositions: (json['scoredPositions'] as int?) ?? 13,
       divisions: (json['divisions'] as List<dynamic>? ?? [])
           .map((d) => Division.fromJson(d as Map<String, dynamic>))
+          .toList(),
+      kartPool: (json['kartPool'] as List<dynamic>? ?? [])
+          .map((k) => Kart.fromJson(k as Map<String, dynamic>))
           .toList(),
     );
   }

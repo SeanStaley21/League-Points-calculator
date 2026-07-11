@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../data/points_calculator.dart';
@@ -14,14 +15,28 @@ class DivisionScreen extends StatelessWidget {
 
   final int divisionIndex;
 
+  static String _formatWeight(double weight) => weight == weight.roundToDouble()
+      ? weight.toInt().toString()
+      : weight.toString();
+
   Future<void> _showRacerDialog(
     BuildContext context, {
     String initialFirstName = '',
     String initialLastName = '',
-    required void Function(String firstName, String lastName) onSubmit,
+    String initialWeight = '',
+    String initialImportName = '',
+    String initialPhone = '',
+    String initialEmail = '',
+    required void Function(String firstName, String lastName, double weight,
+            String importName, String phone, String email)
+        onSubmit,
   }) async {
     final firstNameController = TextEditingController(text: initialFirstName);
     final lastNameController = TextEditingController(text: initialLastName);
+    final weightController = TextEditingController(text: initialWeight);
+    final importNameController = TextEditingController(text: initialImportName);
+    final phoneController = TextEditingController(text: initialPhone);
+    final emailController = TextEditingController(text: initialEmail);
 
     final result = await showDialog<bool>(
       context: context,
@@ -38,6 +53,29 @@ class DivisionScreen extends StatelessWidget {
             TextField(
               controller: lastNameController,
               decoration: const InputDecoration(labelText: 'Last name'),
+            ),
+            TextField(
+              controller: weightController,
+              decoration: const InputDecoration(labelText: 'Weight (lbs)', hintText: '0'),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*$'))],
+            ),
+            TextField(
+              controller: importNameController,
+              decoration: const InputDecoration(
+                labelText: 'Import name (optional)',
+                hintText: 'For Auto-Import to work',
+              ),
+            ),
+            TextField(
+              controller: phoneController,
+              decoration: const InputDecoration(labelText: 'Phone (optional)'),
+              keyboardType: TextInputType.phone,
+            ),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(labelText: 'Email (optional)'),
+              keyboardType: TextInputType.emailAddress,
               onSubmitted: (_) => Navigator.of(context).pop(true),
             ),
           ],
@@ -59,6 +97,10 @@ class DivisionScreen extends StatelessWidget {
       onSubmit(
         firstNameController.text.trim(),
         lastNameController.text.trim(),
+        double.tryParse(weightController.text.trim()) ?? 0,
+        importNameController.text.trim(),
+        phoneController.text.trim(),
+        emailController.text.trim(),
       );
     }
   }
@@ -83,11 +125,15 @@ class DivisionScreen extends StatelessWidget {
               label: const Text('Add Racer'),
               onPressed: () => _showRacerDialog(
                 context,
-                onSubmit: (firstName, lastName) {
+                onSubmit: (firstName, lastName, weight, importName, phone, email) {
                   context.read<SeasonDocument>().addRacer(
                         divisionIndex,
                         firstName: firstName,
                         lastName: lastName,
+                        weight: weight,
+                        importName: importName.isEmpty ? null : importName,
+                        phone: phone.isEmpty ? null : phone,
+                        email: email.isEmpty ? null : email,
                       );
                 },
               ),
@@ -151,12 +197,23 @@ class DivisionScreen extends StatelessWidget {
               context,
               initialFirstName: racer.firstName,
               initialLastName: racer.lastName,
-              onSubmit: (firstName, lastName) {
+              initialWeight: _formatWeight(racer.weight),
+              initialImportName: racer.importName ?? '',
+              initialPhone: racer.phone ?? '',
+              initialEmail: racer.email ?? '',
+              onSubmit: (firstName, lastName, weight, importName, phone, email) {
                 doc.updateRacerInfo(
                   divisionIndex,
                   racerIndex,
                   firstName: firstName,
                   lastName: lastName,
+                  weight: weight,
+                  importName: importName.isEmpty ? null : importName,
+                  clearImportName: importName.isEmpty,
+                  phone: phone.isEmpty ? null : phone,
+                  clearPhone: phone.isEmpty,
+                  email: email.isEmpty ? null : email,
+                  clearEmail: email.isEmpty,
                 );
               },
             );

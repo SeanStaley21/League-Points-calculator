@@ -28,6 +28,7 @@ class WeeklyResult {
     double? weight,
     bool clearWeight = false,
     int? kartNumber,
+    bool clearKartNumber = false,
   }) {
     return WeeklyResult(
       weekNumber: weekNumber,
@@ -37,7 +38,7 @@ class WeeklyResult {
       bestLapTimeMs: bestLapTimeMs ?? this.bestLapTimeMs,
       averageLapTimeMs: averageLapTimeMs ?? this.averageLapTimeMs,
       weight: clearWeight ? null : (weight ?? this.weight),
-      kartNumber: kartNumber ?? this.kartNumber,
+      kartNumber: clearKartNumber ? null : (kartNumber ?? this.kartNumber),
     );
   }
 

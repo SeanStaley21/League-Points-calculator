@@ -1,7 +1,7 @@
 # League Points Calculator — Wiki
 
 Source of truth for what's in this repository, how it works, and what it's for.
-Last generated: 2026-07-09.
+Last generated: 2026-07-09. Last updated: 2026-07-11 (§9.10).
 
 ---
 
@@ -310,3 +310,325 @@ concept of.
 - Covered by `test/season_document_test.dart` (the update/clear path) and
   `test/kart_pick_order_screen_test.dart` (cross-division sort order, live
   re-sort on edit).
+
+### 9.3 Dev launcher batch file + season-long default racer weight (2026-07-11)
+
+Both items from `tasks.md` Priority 1 and Task 1:
+
+- **`league_points_app/run_app.bat`** — double-click dev launcher (`flutter
+  pub get` then `flutter run -d windows`, with a `pause` so the console
+  window stays open on error). Explicitly **temporary**: delete it once the
+  app ships as a packaged `flutter build windows` `.exe`, mirroring how
+  `Kart time program/dist/kart_sorter.exe` is distributed today.
+- **`Racer.weight`** (`lib/models/racer.dart`) — a new non-nullable
+  `double` field, default `0`, distinct from the existing per-week
+  `WeeklyResult.weight` (§9.2, still entered later via the Kart Pick Order
+  screen's `WeightCell`). This is a season-long default set once when the
+  racer is added to the roster: the Add/Edit Racer dialog
+  (`lib/screens/division_screen.dart`, `_showRacerDialog`) gained a "Weight
+  (lbs)" text field (blank parses to `0`, same numeric-input-formatter
+  pattern as `WeightCell`), and `SeasonDocument.addRacer` (added `weight`
+  param, default `0`) copies that value into every week's
+  `WeeklyResult.weight` at creation time. `SeasonDocument.updateRacerInfo`
+  gained a matching `weight` param that only updates the racer's stored
+  default — it does not retroactively rewrite already-created weekly
+  results, which stay independently editable via Kart Pick Order.
+  Confirmed with the user this was the intended reading of "default to 0
+  when adding a racer to the roster" over the alternative (defaulting
+  `WeeklyResult.weight` itself to 0 instead of null).
+- Covered by two new cases in `test/season_document_test.dart`: `addRacer`
+  defaulting/propagating weight into every week, and `updateRacerInfo`
+  updating only the season-long default without touching existing weekly
+  results.
+
+### 9.4 Weekly standings table on the Home screen (2026-07-11)
+
+Task 2 from `tasks.md`. Adds a `WeeklyStandingsSection`
+(`lib/widgets/weekly_standings_section.dart`) below the division cards on
+`HomeScreen`:
+
+- A `SegmentedButton<int>` week toggle (`Wk 1`..`Wk Season.weekCount`).
+  Selected week is kept in the section's own `State` (`_selectedWeek`,
+  defaults to `1`), **not persisted** to the `.lpts` file or app-wide state —
+  it resets to week 1 on next launch, but survives navigating into a
+  division and back since `HomeScreen` (and this section) stay on the
+  Navigator stack rather than being rebuilt from scratch. Fully persisting
+  "last week viewed" was left TBD in the task and judged not worth a file
+  schema change for a session-scoped convenience.
+- Below the toggle, one `_DivisionWeekColumn` card per division, laid out
+  side by side in a horizontally scrollable `Row`. Each card sorts its
+  racers **alphabetically by `fullName`** (not `sortOrder`/points) and shows
+  a two-column `DataTable`: Name | Finish, where Finish is **editable in
+  place** (added 2026-07-11) via the same `WeekPositionCell`
+  (`lib/widgets/week_position_cell.dart`) used on `DivisionScreen` — a
+  numeric text field that commits on blur/submit, shows the computed
+  points below it, and calls `SeasonDocument.updateWeeklyFinishPosition`.
+  Row height bumped from 32 to 76 (`dataRowMinHeight`/`dataRowMaxHeight`)
+  to fit the cell's Pos field + points line without overflowing.
+  - Since racers are displayed alphabetically but `SeasonDocument`
+    addresses them by their index in `Division.racers`' stored (insertion)
+    order, `_DivisionWeekColumn` pairs each racer with its original index
+    before sorting (`indexedRacers`) and uses that original index — not
+    its position in the alphabetical list — when calling
+    `updateWeeklyFinishPosition`. Getting this backwards would silently
+    write the wrong racer's result after the first name added out of
+    alphabetical order.
+- `HomeScreen`'s division `GridView` gained `shrinkWrap: true` +
+  `NeverScrollableScrollPhysics` and now sits inside a `SingleChildScrollView`
+  alongside this new section (previously the `GridView` alone filled the
+  `Expanded` area via its own scrolling).
+- Covered by `test/weekly_standings_section_test.dart`, which pumps the
+  widget directly (not through `HomeScreen`) to avoid a pre-existing,
+  unrelated layout overflow in `StandingsSnapshotCard` that only surfaces
+  once a division has a leader with points — out of scope for this task,
+  not fixed here. Includes a case entering text into a Finish field and
+  asserting the change lands on the underlying `SeasonDocument`.
+- Manually verified end-to-end in the built Windows app, including editing
+  a Finish cell directly from the Home screen and seeing the division
+  card's leader/points snapshot update immediately.
+
+### 9.5 Kart pool + kart assignment on the Kart Pick Order screen (2026-07-11)
+
+Extends §9.2's `KartPickOrderScreen` so the operator can actually record which
+physical kart each racer picked, not just the pick order itself. Requested
+because the league runs two physically distinct kart pools (faster Pro karts,
+slower Junior karts for the Juniors division), the same Pro kart number can be
+driven by one racer from each Pro division in the same week since those
+divisions race at different times, and karts regularly need to be marked
+broken/out of service for a given week.
+
+- **`KartClass`** (`lib/models/kart.dart`) — `enum { pro, junior }` with a
+  `.label` extension. **`Kart`** (same file) is `{number, classType,
+  downWeeks}` — `downWeeks` is a `Set<int>` of week numbers that kart is
+  marked down for, since a kart can be broken one week and fine the next.
+- **`Division.kartClass`** (`lib/models/division.dart`) — new field, default
+  `KartClass.pro`, added so the app knows which pool a division draws from.
+  Set via a `DropdownButton<KartClass>` on each division row and the "new
+  division" row in `SeasonSetupScreen`; `SeasonDocument.addDivision` gained a
+  `kartClass` param and `updateDivisionClass(divisionIndex, kartClass)` was
+  added to change it after the fact (needed since divisions created before
+  this feature default to Pro, e.g. a pre-existing "Juniors" division).
+- **`Season.kartPool`** (`lib/models/season.dart`) — a `List<Kart>`, season-wide
+  (not per-division/per-week): the Pro pool is shared by every Pro division,
+  the Junior pool by the Juniors division. `SeasonDocument` gained
+  `addKart(number, kartClass)` (no-ops on a duplicate number),
+  `removeKart(number)`, and `setKartDownForWeek(number, week, isDown)`.
+- **`WeeklyResult.kartNumber`** existed already but had no write path or clear
+  semantics. `WeeklyResult.copyWith` gained a `clearKartNumber` flag (mirroring
+  `clearWeight`/`clearFinishPosition`), and `SeasonDocument` gained
+  `updateWeeklyKartNumber(divisionIndex, racerIndex, weekNumber, kartNumber)`.
+- **`KartPickOrderScreen`** (`lib/screens/kart_pick_order_screen.dart`):
+  tapping a racer's row selects it (highlighted via `ListTile.selected`) and
+  expands a row of `FilterChip`s directly beneath it, showing that division's
+  kart pool (filtered by `Division.kartClass`). A chip is disabled and
+  labeled "(down)" if the kart is marked down for the currently viewed week,
+  or "(taken)" if another racer **in the same division** already has it
+  assigned that week — kart-taken tracking is scoped per division, not
+  globally across the whole Pro pool, so the same kart number can be picked by
+  one Pro 1 racer and one Pro 2 racer in the same week without conflict.
+  Tapping the selected racer's already-assigned kart again clears it. An
+  AppBar settings icon opens **`KartPoolDialog`**
+  (`lib/widgets/kart_pool_dialog.dart`), which lists Pro/Junior karts with a
+  checkbox for "down for the week currently being viewed", a delete button,
+  and a small form to add a new kart number + class.
+- Covered by new cases in `test/season_document_test.dart` (kart
+  add/remove/dedupe-by-number, per-week down marking, `updateDivisionClass`,
+  `updateWeeklyKartNumber` set/clear) and `test/kart_pick_order_screen_test.dart`
+  (selecting a racer filters the pool to their division's class, tapping a
+  chip assigns it, a down kart is disabled, a kart taken within the same
+  division is disabled for a different racer).
+- Manually verified end-to-end in the built Windows app: added a Pro division,
+  a racer with a season-long weight, opened Kart Pick Order, added a Pro kart
+  via the settings dialog, selected the racer, and confirmed tapping the kart
+  chip assigned it (row updated to show "Pro 1 · Kart 14", chip showed
+  selected/checked).
+- **Reworked same day** (see §9.7) from a single cross-division list into one
+  column per division — the user wanted each division's own pick order kept
+  separate and visible side by side, matching §9.4's Weekly Standings layout,
+  not merged into one ranked list.
+
+### 9.6 Optional racer contact/import-name fields (2026-07-11, partial — Task 3)
+
+Model/dialog half of Task 3 from `tasks.md`. The auto-import matching itself
+stays blocked: the user hasn't yet dropped an example Clubspeed race printout
+into `media/`, so the exact name/column format to match against is still
+unknown and `lib/screens/auto_import_screen.dart` is untouched.
+
+- **`Racer.importName`, `Racer.phone`, `Racer.email`** (`lib/models/racer.dart`)
+  — three new optional (`String?`) fields, all default `null`. `importName` is
+  distinct from `firstName`/`lastName`: it exists so an operator can record
+  how a racer's name appears on the Clubspeed export when that differs from
+  their roster name (nickname, middle name on file at the track, etc.) —
+  future auto-import matching should fall back to `fullName` when
+  `importName` is unset. `Racer.copyWith` gained `clearImportName`/
+  `clearPhone`/`clearEmail` flags (same pattern as `WeeklyResult`'s
+  `clearWeight`) so the Edit Racer dialog can blank out a previously-set
+  value, not just leave it unchanged.
+- **`SeasonDocument.addRacer`** and **`updateRacerInfo`**
+  (`lib/data/season_document.dart`) gained matching optional params
+  (`importName`, `phone`, `email` on both; `clearImportName`/`clearPhone`/
+  `clearEmail` on `updateRacerInfo`).
+- **Add/Edit Racer dialog** (`lib/screens/division_screen.dart`,
+  `_showRacerDialog`) gained three more optional text fields below Weight:
+  "Import name (optional)", "Phone (optional)", "Email (optional)". Blank
+  text is treated as "clear this field" on save, not "leave unchanged" —
+  matches how the rest of this dialog already treats blank weight as `0`.
+- Covered by a new case in `test/season_document_test.dart` setting all
+  three fields via `addRacer` then clearing them via `updateRacerInfo`.
+- Still to do once the `media/` example export is available: confirm the
+  exact name/column format Clubspeed exports use, then wire matching +
+  actual import logic into `auto_import_screen.dart` using
+  `importName`/`fullName` against that format.
+
+### 9.7 Kart Pick Order: per-division columns instead of one combined list (2026-07-11)
+
+Follow-up to §9.5, same day: the user clarified (with a screenshot of the
+Weekly Standings side-by-side layout as the reference) that Kart Pick Order
+should show **one column per division**, each independently sorted
+heaviest-first, not one list flattened across all divisions. Kart-assignment
+exclusivity was already scoped per division (§9.5), so that part of the
+behavior didn't change — only the list's shape did.
+
+- `KartPickOrderScreen` no longer computes one global sorted `entries` list.
+  Instead its body is a horizontally-scrollable `Row` of `_DivisionPickColumn`
+  cards, one per `Season.divisions` entry (same `SingleChildScrollView` +
+  `Row` shape as `WeeklyStandingsSection`'s `_DivisionWeekColumn`, §9.4).
+- **`_DivisionPickColumn`** (private widget in the same file) sorts only its
+  own division's racers by that week's weight, descending, and renders each as
+  a `ListTile` with a rank badge scoped to that division (so division 2's
+  heaviest racer is still "1", not a continuation of division 1's numbering).
+- Racer selection state moved from a single "one selected racer overall"
+  concept to a `(divisionIndex, racerIndex)` pair still held in
+  `_KartPickOrderScreenState`, but the kart-assignment chip row now renders
+  **inline, directly under the selected racer's own row within that
+  division's card** (via `_buildRow`'s `if (isSelected) ...`), instead of in
+  one shared panel pinned to the bottom of the screen — since each division
+  is now its own visual column, there's no single "bottom of the list" that
+  makes sense for all of them.
+- `takenInDivision` (which karts are already assigned within a division, for
+  disabling chips) is now computed per `_DivisionPickColumn` from just that
+  division's entries, rather than once globally — mechanically simpler now
+  that there's no cross-division list to derive it from, and it makes the
+  per-division exclusivity/no-cross-division-conflict rule (§9.5) more
+  obviously correct by construction.
+- Updated `test/kart_pick_order_screen_test.dart` throughout for the new
+  shape (e.g. the sort-order test now asserts each division's list
+  independently instead of one global order) and added a new case asserting
+  the same kart number can be assigned in two different divisions in the
+  same week without either chip being disabled.
+- Not re-verified live in the running Windows app this round — another
+  Claude Code session was actively editing files in this same working
+  directory (not an isolated worktree) at the time, and `flutter run -d
+  windows` hit a transient build error from that race; `flutter analyze` and
+  `flutter test` both pass cleanly against the settled code.
+
+### 9.8 Settings screen with app-wide color/dark theme (2026-07-11)
+
+Adds a top-level Settings screen (separate from the per-season "Season
+Setup" screen, §9.1) with a Preferences section for changing the whole
+app's color scheme and light/dark/system mode, persisted across restarts.
+
+- **`ThemeController`** (`lib/data/theme_controller.dart`) is a
+  `ChangeNotifier` holding the current seed `Color` and `ThemeMode`
+  (default: deep orange, system), persisted via `shared_preferences` (new
+  pubspec dependency) as an int ARGB value + mode name string. It loads
+  asynchronously on construction and falls back to the defaults until that
+  completes. `appColorOptions` in the same file is the fixed list of named
+  color choices offered in the UI (Deep Orange, Blue, Indigo, Teal, Green,
+  Purple, Pink, Red, Amber).
+- **`main.dart`** now provides `ThemeController` alongside `SeasonDocument`
+  via `MultiProvider` (was a single `ChangeNotifierProvider`).
+  **`app.dart`**'s `LeaguePointsApp` watches it and builds `MaterialApp`
+  with both `theme`/`darkTheme` (same seed color, `Brightness.light`/`.dark`)
+  and `themeMode: themeController.themeMode` — so light/dark and the seed
+  color both apply app-wide immediately when changed, no restart needed.
+- **`SettingsScreen`** (`lib/screens/settings_screen.dart`) is a new screen
+  with a "Preferences" section containing an "App Appearance" `ExpansionTile`
+  (shows the current mode + color name as its subtitle). Tapping it expands
+  **`AppAppearanceControls`** (`lib/widgets/app_appearance_controls.dart`)
+  inline, directly under the tile — a `SegmentedButton<ThemeMode>` for
+  Light/Dark/System plus a `Wrap` of tappable color swatches from
+  `appColorOptions`, both writing straight through to `ThemeController` so
+  the app re-themes live as you tap, no modal dialog involved. (An earlier
+  version of this used an `AlertDialog`-based `AppAppearanceDialog`; the
+  user asked for the controls to live inside the tile itself instead, so
+  that file was replaced by the current inline widget.)
+- Reachable from a new gear icon (`Icons.settings_outlined`, tooltip
+  "Settings") on the Home screen's action row. The pre-existing Season
+  Setup icon in that same row was changed from `Icons.settings_outlined` to
+  `Icons.event_note_outlined` to avoid two identical-looking icons doing
+  different things.
+- `test/widget_test.dart` needed a `ThemeController` provider added to its
+  `MultiProvider` test wrapper (`_wrapApp` helper) since `LeaguePointsApp`
+  now reads it unconditionally; `flutter analyze` and `flutter test` both
+  pass (29 tests).
+
+### 9.9 Contacts screen (2026-07-11)
+
+Adds a read-only directory listing every racer in the season with their
+phone/email (§9.6 added those fields to `Racer` but nothing surfaced them
+outside the per-division Edit Racer dialog).
+
+- **`ContactsScreen`** (`lib/screens/contacts_screen.dart`) is a new screen:
+  a search box (filters by name/phone/email, case-insensitive) over a
+  `ListView` grouped by division (division name as a header, racers sorted
+  by `sortOrder` beneath it, same sort as `DivisionScreen`). Each racer is a
+  `ListTile` (`_ContactTile`) showing phone/email as subtitle lines, or "No
+  contact info on file" if both are unset, with trailing phone/email icon
+  buttons that copy the value to the clipboard via `Clipboard.setData`
+  (`flutter/services`, no new dependency) and confirm with a `SnackBar`.
+  Divisions/racers that don't match the search text are hidden entirely
+  (a division header with zero matching racers isn't shown).
+- Reachable from a new `Icons.contacts_outlined` icon button (tooltip
+  "Contacts") on the Home screen's action row, added to the left of the
+  Kart Pick Order icon (§9.2).
+- Deliberately no `url_launcher`-style tap-to-call/email — that needs a new
+  dependency plus platform config the app doesn't otherwise need; copy-to-
+  clipboard covers the "share this contact info" use case without it.
+- `flutter analyze` passes clean on the new/changed files. Not covered by a
+  new widget test yet.
+
+### 9.10 Kart column on Weekly Standings + Import name hint text (2026-07-11)
+
+Two small, independent tweaks:
+
+- **`WeeklyStandingsSection`** (`lib/widgets/weekly_standings_section.dart`,
+  §9.4) gained a third, read-only **Kart** column next to Name/Finish in each
+  division's `DataTable`, showing that racer's `WeeklyResult.kartNumber` for
+  the selected week (or `-` if none assigned) — requested so the operator can
+  see who had which kart, for which week, from the Home screen without
+  opening Kart Pick Order (§9.5/§9.7, which remains the only place kart
+  numbers are actually assigned/edited; this column is display-only). Covered
+  by a new case in `test/weekly_standings_section_test.dart`.
+- The Add/Edit Racer dialog's "Import name" field (`lib/screens/division_screen.dart`,
+  §9.6) had its `hintText` shortened from a full sentence to **"For
+  Auto-Import to work"** — the text that shows inside the box before typing.
+
+### 9.11 Save/load kart roster to a standalone file (2026-07-11)
+
+Requested so the operator doesn't have to retype every kart number each new
+season: `KartPoolDialog` (§9.5) gained "Load karts from file" / "Save karts to
+file" buttons above the add-kart row.
+
+- **`kartRosterFileExtension = 'lktr'`** (`lib/utils/constants.dart`) — a
+  separate file extension/format from the season file (`.lpts`), since a
+  roster is just the kart pool, not a whole season.
+- **`FileService`** (`lib/data/file_service.dart`) gained
+  `pickKartRosterOpenPath`/`pickKartRosterSavePath` (same `file_selector`
+  pattern as the season open/save paths) and `readKartRoster`/
+  `writeKartRoster`. The roster file only stores `{number, classType}` per
+  kart — `downWeeks` is deliberately dropped on both read and write, since
+  "broken this week" is season/week-specific and meaningless carried into a
+  freshly loaded roster.
+- **`SeasonDocument.saveKartRosterToFile()`** writes the current season's
+  `kartPool` out via a save-file picker (suggested filename `"<season name>
+  karts"`). **`loadKartRosterFromFile()`** reads a roster via an open-file
+  picker and **merges** it into the current pool: kart numbers already present
+  are left untouched (so existing down-for-week marks on this season's karts
+  survive a reload), only new numbers are added.
+- `KartPoolDialog` wraps both calls in try/catch and reports success/failure
+  via a `SnackBar` (`ScaffoldMessenger.of(context)`, available because
+  `MaterialApp` provides one at the root).
+- No automated test added (thin UI/file-IO wiring over already-tested
+  `SeasonDocument` mutation logic); verified via `flutter analyze` (clean) and
+  the existing `flutter test` suite (all 30 cases still pass unaffected).

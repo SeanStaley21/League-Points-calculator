@@ -12,4 +12,8 @@ const List<String> defaultDivisionNames = [
 
 const String seasonFileExtension = 'lpts';
 
+/// Extension for a standalone kart roster file -- just kart numbers/classes,
+/// saved separately from a season so the pool can be reused across seasons.
+const String kartRosterFileExtension = 'lktr';
+
 const int currentFormatVersion = 1;

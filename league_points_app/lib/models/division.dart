@@ -1,3 +1,4 @@
+import 'kart.dart';
 import 'racer.dart';
 
 class Division {
@@ -5,10 +6,15 @@ class Division {
   final int sortOrder;
   final List<Racer> racers;
 
+  /// Which kart pool (see [Kart]) this division draws from for Kart Pick
+  /// Order. Defaults to pro since most divisions are pro divisions.
+  final KartClass kartClass;
+
   const Division({
     required this.name,
     this.sortOrder = 0,
     this.racers = const [],
+    this.kartClass = KartClass.pro,
   });
 
   /// The racer currently leading this division by total points, if any.
@@ -22,11 +28,13 @@ class Division {
     String? name,
     int? sortOrder,
     List<Racer>? racers,
+    KartClass? kartClass,
   }) {
     return Division(
       name: name ?? this.name,
       sortOrder: sortOrder ?? this.sortOrder,
       racers: racers ?? this.racers,
+      kartClass: kartClass ?? this.kartClass,
     );
   }
 
@@ -34,6 +42,7 @@ class Division {
         'name': name,
         'sortOrder': sortOrder,
         'racers': racers.map((r) => r.toJson()).toList(),
+        'kartClass': kartClass.name,
       };
 
   factory Division.fromJson(Map<String, dynamic> json) {
@@ -43,6 +52,9 @@ class Division {
       racers: (json['racers'] as List<dynamic>? ?? [])
           .map((r) => Racer.fromJson(r as Map<String, dynamic>))
           .toList(),
+      kartClass: json['kartClass'] != null
+          ? KartClass.values.byName(json['kartClass'] as String)
+          : KartClass.pro,
     );
   }
 }
