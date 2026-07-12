@@ -1,7 +1,7 @@
 # League Points Calculator — Wiki
 
 Source of truth for what's in this repository, how it works, and what it's for.
-Last generated: 2026-07-09. Last updated: 2026-07-11 (§9.10).
+Last generated: 2026-07-09. Last updated: 2026-07-11 (§9.12).
 
 ---
 
@@ -632,3 +632,47 @@ file" buttons above the add-kart row.
 - No automated test added (thin UI/file-IO wiring over already-tested
   `SeasonDocument` mutation logic); verified via `flutter analyze` (clean) and
   the existing `flutter test` suite (all 30 cases still pass unaffected).
+
+### 9.12 Single-file `.exe` for sharing (2026-07-11)
+
+The user wanted one literal `.exe` to hand to someone — not a folder, not a
+zip. A stock `flutter build windows --release` output is never a single
+file (it's `league_points_app.exe` + `flutter_windows.dll` +
+`file_selector_windows_plugin.dll` + a `data/` folder — the `.exe` won't run
+if copied out on its own), so producing a true single-file artifact needs an
+extra packaging step on top of the Flutter build. This is the packaged-`.exe`
+alternative to `run_app.bat` that §9.3 flagged as the eventual replacement
+(`run_app.bat` itself was left in place — still useful for running from
+source during development, not deleted).
+
+- `flutter build windows --release` output is zipped to
+  `league_points_app/dist/league_points_app_windows.zip` first (intermediate
+  artifact, not the deliverable).
+- **First attempt, abandoned:** Windows' built-in `iexpress.exe` (SED-file
+  self-extractor) wrapping the zip + a launcher `.bat`. Rejected after
+  testing — IExpress pops an install-confirmation window that didn't behave
+  reliably (dismissing it via `SendKeys`/UI Automation sometimes closed the
+  package instead of proceeding, sometimes left it hung with nothing
+  extracted), which isn't good enough for a "just double-click it" artifact.
+- **What's actually used:** a small C# launcher (`Launcher.cs`, compiled with
+  the .NET Framework's built-in `csc.exe` — no extra install needed) with the
+  zip embedded as a resource via `csc /resource:app.zip,app.zip`. At runtime
+  it extracts the embedded zip to `%LOCALAPPDATA%\LeaguePointsApp\` (wiping
+  any previous copy first, so it's always current) and starts
+  `league_points_app.exe` from there — no dialogs, no companion files.
+  Compiled with `/target:winexe` (no console flash) as
+  `league_points_app/dist/LeaguePointsApp.exe` (~12.6 MB, single file).
+  Verified end-to-end: double-click equivalent (`Start-Process`) → files
+  land in `%LOCALAPPDATA%\LeaguePointsApp\` → `league_points_app` process
+  comes up and responds.
+- Rebuild recipe (no build script committed — this is a manual/occasional
+  packaging step, not part of `flutter build`): `flutter build windows
+  --release`, zip the `Release/` folder, `csc /nologo /target:winexe
+  /platform:x64 /out:LeaguePointsApp.exe /resource:<zip>,app.zip
+  /reference:System.IO.Compression.FileSystem.dll
+  /reference:System.IO.Compression.dll Launcher.cs`.
+- `league_points_app/.gitignore` gained `/dist/` — everything under it
+  (the zip and the final `.exe`) is a regenerable build artifact, same
+  reasoning as `/build/` already being ignored (§6 covers the same
+  build-artifact-hygiene call for `kart_sorter.py`'s PyInstaller output).
+  Nothing in `dist/` is committed to git.
