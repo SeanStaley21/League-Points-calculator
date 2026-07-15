@@ -1,7 +1,7 @@
 # League Points Calculator — Wiki
 
 Source of truth for what's in this repository, how it works, and what it's for.
-Last generated: 2026-07-09. Last updated: 2026-07-11 (§9.12).
+Last generated: 2026-07-09. Last updated: 2026-07-15 (§9.13).
 
 ---
 
@@ -676,3 +676,51 @@ source during development, not deleted).
   reasoning as `/build/` already being ignored (§6 covers the same
   build-artifact-hygiene call for `kart_sorter.py`'s PyInstaller output).
   Nothing in `dist/` is committed to git.
+
+  **Correction (2026-07-15):** `Launcher.cs` had only ever been written
+  into `dist/`, so it was gitignored along with everything else there —
+  the *source* for the packaged exe was silently un-recoverable, not just
+  the build output. It's now committed at `league_points_app/packaging/Launcher.cs`
+  (outside `/dist/`, so it survives), with the rebuild recipe as a comment
+  at the top of the file. See §9.13.
+
+### 9.13 Collapsible sidebar navigation + `Launcher.cs` recovered (2026-07-15)
+
+- **`AppSidebar`** (`lib/widgets/app_sidebar.dart`) replaces the vertical
+  column of unlabeled `IconButton`s that used to sit in the top-right of
+  `HomeScreen`'s header (Contacts / Kart Pick Order / Season Setup /
+  Settings — see §9.1/§9.2/§9.8/§9.9 for when each of those actions was
+  added). It's now a proper left-hand navigation rail spanning the full
+  body height, built with `AnimatedContainer` so the icon size/spacing stay
+  identical between states and only the width (72px collapsed / 220px
+  expanded) and label opacity animate — a 220ms `easeInOutCubic` transition
+  rather than an instant swap. A `chevron_left`/`chevron_right` row pinned
+  to the bottom (below a `Divider`, same row height as the nav items above
+  it) toggles collapsed/expanded state, defaulting to expanded. Collapsed
+  items get a `Tooltip` showing the label on hover, since the text itself
+  is hidden. `HomeScreen`'s header `Row` (season name/dates/counts) moved
+  into the remaining `Expanded` content pane since the icons no longer
+  share that row.
+- **`Launcher.cs` recovered.** While rebuilding the packaged exe for this
+  change, discovered the C# launcher source described in §9.12 had never
+  actually been committed anywhere — it was written directly into the
+  gitignored `dist/` folder during the original packaging session, so it
+  existed only on that one machine's disk and wasn't recoverable from git.
+  Rewrote it from the §9.12 description (extract embedded `app.zip`
+  resource to `%LOCALAPPDATA%\LeaguePointsApp\`, wiping any previous copy,
+  then launch `league_points_app.exe` from there) and committed it at
+  **`league_points_app/packaging/Launcher.cs`** — deliberately outside
+  `/dist/` so this doesn't happen again. The rebuild recipe now lives as a
+  comment at the top of that file instead of only in this wiki.
+- Rebuilt and manually verified both artifacts end-to-end: `flutter build
+  windows` (plain dev build) and the packaged single-file
+  `dist/LeaguePointsApp.exe` (rezipped the fresh `Release/` output, recompiled
+  the launcher with `csc`, launched it, confirmed it extracts to
+  `%LOCALAPPDATA%\LeaguePointsApp\` and starts the app). Found and closed an
+  orphaned `league_points_app.exe` left running from an earlier session's
+  packaged-exe test (confirmed with the user before closing it, since it
+  could otherwise have been mistaken for a window with unsaved work in it).
+- `flutter analyze` clean. No new widget test added for `AppSidebar` (pure
+  layout/UI-chrome change, navigation destinations and their `onTap`
+  behavior are unchanged from §9.1/§9.2/§9.8/§9.9, already covered where
+  those were introduced).
