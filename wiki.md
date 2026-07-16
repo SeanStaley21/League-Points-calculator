@@ -1,7 +1,7 @@
 # League Points Calculator — Wiki
 
 Source of truth for what's in this repository, how it works, and what it's for.
-Last generated: 2026-07-09. Last updated: 2026-07-15 (§9.13).
+Last generated: 2026-07-09. Last updated: 2026-07-15 (§9.14).
 
 ---
 
@@ -38,6 +38,9 @@ League-Points-calculator/
 ├── .gitignore                         Excludes the PyInstaller build/ cache from version control
 ├── README.md                          Usage instructions for the .exe (end-user facing)
 ├── wiki.md                            This document
+├── workInstructions.md                Flutter app getting-started + multi-Claude-session working rules
+├── tasks.md                           Original 2026-07-09 request list for league_points_app (§9)
+├── Newfeatures1.md                    Ranked upgrade roadmap + backlog for league_points_app (§9.14)
 ├── league template.xlsx               Manual season/points-tracking workbook
 ├── Kart time program/
 │   ├── kart_sorter.py                 The actual source code (only .py file in that program)
@@ -724,3 +727,60 @@ source during development, not deleted).
   layout/UI-chrome change, navigation destinations and their `onTap`
   behavior are unchanged from §9.1/§9.2/§9.8/§9.9, already covered where
   those were introduced).
+
+### 9.14 Upgrade roadmap recorded in `Newfeatures1.md` (2026-07-15)
+
+Planning only — **no app code changed in this entry.** `Newfeatures1.md` (repo
+root, alongside `tasks.md`) records a ranked upgrade roadmap plus a backlog,
+written after an audit of the app as it stands at §9.13. Priorities confirmed
+with the user: reporting (print/export/email), data safety, leaderboard views,
+with Android as a real later target.
+
+The four ranked items are: **(1)** a reports feature — print / PDF / CSV / email
+with user-selected scope (one-or-all weeks × one-or-all divisions), orientation,
+and layout, built on a pure `lib/reports/` layer that renders to an abstract
+`ReportDocument` so scope/layout logic is unit-testable without a printer;
+**(2)** data safety; **(3)** season leaderboard/standings views; **(4)** Android
+seams. See the file itself for the full spec, package evaluation, risks, and
+verification steps — it is not duplicated here.
+
+Findings from the audit that are worth recording in the wiki itself, since they
+describe the code as it exists today rather than a proposal:
+
+- **No output path exists at all.** The only file writes are `writeSeason` and
+  `writeKartRoster` — machine formats for reloading the app's own state. The
+  xlsx workflow can't be fully retired until the app can print, since
+  `kart_sorter.exe` still prints the fixed-width `.txt` the league uses.
+- **`formatVersion` is written but never read.** `FileService.writeSeason`
+  (`file_service.dart:48`) writes it; `readSeason` (`:41-43`) ignores it and
+  reaches straight for `decoded['season']`. The field is currently decorative and
+  no migration path exists.
+- **No unsaved-changes guard on exit.** `confirmDiscardUnsavedChanges` covers
+  New/Open only; its own doc comment (`confirm_dialog.dart:35`) claims
+  "(New/Open/**Exit**)" but no `PopScope`/window-close hook exists, so closing
+  the window silently discards the season. `file_service.dart` also has zero
+  try/catch, so a corrupt `.lpts` throws unhandled.
+- **`sortOrder` index trap — wrong-racer data writes.** `division_screen.dart:114`
+  sorts a copy of `division.racers` and passes that *sorted* index to
+  `updateWeeklyFinishPosition` (`:185`), `updateRacerInfo` (`:207`) and
+  `removeRacer` (`:228`), while `SeasonDocument` addresses racers by their *stored*
+  index — the same trap `weekly_standings_section.dart:111-116` and
+  `kart_pick_order_screen.dart:143-151` explicitly document and avoid. Compounding
+  it, `addRacer` assigns `sortOrder = racers.length` (`season_document.dart:167`)
+  while `removeRacer` just `removeAt`s (`:184`), so remove-then-add yields
+  duplicate `sortOrder` values (0,2,2).
+  It doesn't fire today, but **not** because `sortOrder` tracks insertion order —
+  the duplicates prove it doesn't. It's that `sortOrder` is always *non-decreasing
+  in storage order* (adds only append, removes only remove), so a **stable** sort
+  by it is the identity. Dart's `List.sort` is only stable below its internal
+  32-element threshold (insertion sort; dual-pivot quicksort above, and the API
+  promises nothing), so at **32+ racers in one division** the duplicates can
+  reorder the copy and the writes hit the wrong racer — no reordering feature
+  needed. Real divisions run ~13 racers, so it stays latent in practice. Fix both
+  halves (carry the original index; assign `sortOrder` from a monotonic counter)
+  before adding racer reordering, which makes it live at any size.
+- **Auto-import (§9.6, `tasks.md` Task 3) is still blocked** — `media/` is empty.
+  Additionally: the Clubspeed export `kart_sorter.py` reads is *kart-level only*
+  (Kart No, heats, laps, avg/best lap, no racer names), so it cannot feed racer
+  finish positions. A different export is required than the one the existing tool
+  consumes.
