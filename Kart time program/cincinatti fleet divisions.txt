@@ -1,0 +1,4 @@
+junior:60-80
+intermediate: 90-99
+pro: 11-59
+unknown:2-9

@@ -1,7 +1,7 @@
 # League Points Calculator — Wiki
 
 Source of truth for what's in this repository, how it works, and what it's for.
-Last generated: 2026-07-09. Last updated: 2026-07-15 (§9.14).
+Last generated: 2026-07-09. Last updated: 2026-08-01 (§3A — kartTimeCinci build).
 
 ---
 
@@ -46,9 +46,16 @@ League-Points-calculator/
 │   ├── kart_sorter.py                 The actual source code (only .py file in that program)
 │   ├── kart_sorter.spec               PyInstaller build spec for kart_sorter.py
 │   ├── kart operation.csv             Sample lap-time data (NOT read by current code — see §5)
+│   ├── cincinatti fleet divisions.txt Cincinnati kart-number division ranges — source spec for kartTimeCinci (§3A)
 │   ├── build/                         PyInstaller intermediate build cache — gitignored, regenerated locally by `pyinstaller --onefile kart_sorter.py`
 │   └── dist/                          PyInstaller output — what end users actually run
 │       └── kart_sorter.exe            The compiled, distributable program (~53 MB)
+├── kartTimeCinci/                     Cincinnati-fleet variant of the kart sorter — see §3A
+│   ├── kartTimeCinci.py              Source (adapted from kart_sorter.py; new fleet ranges + newest-.xls input + auto-close)
+│   ├── kartTimeCinci.spec            PyInstaller spec (generated as a build byproduct)
+│   ├── build/                        PyInstaller intermediate cache — gitignored, regenerated locally
+│   └── dist/
+│       └── kartTimeCinci.exe          The compiled, distributable program (~33 MB)
 └── league_points_app/                 Flutter replacement app — NOT yet committed to git, see §9
     ├── README.md                      Getting started + multi-Claude-session working rules
     └── lib/                           App source (models/, data/, screens/, widgets/)
@@ -130,6 +137,74 @@ File path: C:\Users\Asalt\OneDrive - Full Throttle Adrenaline Park\excel stuff\l
 compile code: "C:\Users\Asalt\AppData\Local\Programs\Python\Python313\python.exe" -m PyInstaller --onefile kart_sorter.py
 ```
 This tells you exactly how `dist/kart_sorter.exe` is (re)built: `pyinstaller --onefile kart_sorter.py` from within `Kart time program/`, using Python 3.13, on a machine where the repo lives under OneDrive at Full Throttle Adrenaline Park. It also confirms these are one-off manual builds, not CI-produced.
+
+---
+
+## 3A. `kartTimeCinci/` — the Cincinnati-fleet build (added 2026-08-01)
+
+`kartTimeCinci/kartTimeCinci.py` is a standalone second build of the kart sorter for
+a **different location running a different kart fleet** (Cincinnati). It is a close
+adaptation of `kart_sorter.py` (§3) — same functions (`get_kart_class`, `read_xls`,
+`save_kart_tables`, `print_file`, `main`), same Clubspeed HTML-table `.xls` input
+format, same fixed-width `.txt` report, same print-to-default-printer flow. The
+original `Kart time program/` is untouched; this is a sibling, not a replacement.
+
+The division ranges come from `Kart time program/cincinatti fleet divisions.txt` and
+are **baked into the code** (hardcoded, like the original — no external config file to
+lose as a single `.exe`).
+
+It differs from `kart_sorter.py` in **four** ways (do **not** describe it as "same
+`Excel.xls` input, differs only in classification"):
+
+1. **Classification ranges (`get_kart_class`)** — the Cincinnati fleet:
+
+   | Kart # range | Class          |
+   |--------------|----------------|
+   | 11–59        | `Pro`          |
+   | 60–80        | `Junior`       |
+   | 90–99        | `Intermediate` |
+   | 2–9          | `Unknown`      |
+   | anything else (0–1, 10, 81–89, 100+, non-numeric) | `Other` |
+
+   Class print order is `Pro, Junior, Intermediate, Unknown, Other`; empty classes
+   are skipped, as in the original.
+
+2. **Input selection (`read_xls`)** — instead of a file that must be named
+   `Excel.xls`, it scans `~/Downloads` for **all `*.xls` files** and reads the **most
+   recently modified** one (`max(..., key=os.path.getmtime)`), so the operator can
+   just download the export and run without renaming. If no `*.xls` exists it prints
+   "No .xls export found in Downloads" and falls through to the no-data path. The
+   "newest wins" heuristic does **not** validate the file is actually a kart export —
+   an unrelated/binary `.xls` that happens to be newest will fail `pandas.read_html`,
+   get caught, and land on the no-data path.
+
+3. **Output filename** — `~/Downloads/KartTimeCinci_Results_<MM DD YYYY>.txt`
+   (distinct from the original's `Kart_Results_<date>.txt`, so running both tools the
+   same day doesn't clobber one report).
+
+4. **Console lifecycle (`print_file` + `main`)** — the unconditional
+   "Press Enter to exit" is gone. On a **successful print the console closes
+   immediately**; it only stays open, with a **distinct** message, on:
+   - **No data** → `"No kart data found."` + a Downloads hint (nothing was sent to a
+     printer, so it deliberately does **not** say "Could not print").
+   - **Failed print dispatch** → `"Could not print"`.
+   - **Any uncaught exception** → the error, held by a `try/except` wrapping all of
+     `main()` (without this, an error in a double-clicked `.exe` would slam the window
+     shut before it could be read).
+
+   Caveat: `print_file` returning success means the job was *dispatched* to the
+   default printer, not that paper came out. `os.startfile(path, "print")` only raises
+   `OSError` when no print verb is registered for `.txt`; a **missing/offline/paused
+   default printer does not raise** — Windows exposes no stronger signal without a
+   heavier print API.
+
+**Build:** from inside `kartTimeCinci/`, `python -m PyInstaller --onefile
+kartTimeCinci.py` (Python 3.13). This produces `dist/kartTimeCinci.exe` (~33 MB) and
+**generates `kartTimeCinci.spec` as a byproduct** — the spec is not hand-written
+(building from the `.py` would overwrite it anyway). `kartTimeCinci/build/` and
+`kartTimeCinci/__pycache__/` are gitignored (same regenerable-cache reasoning as §6);
+`dist/kartTimeCinci.exe` is committed as the shippable artifact, like
+`dist/kart_sorter.exe`.
 
 ---
 
