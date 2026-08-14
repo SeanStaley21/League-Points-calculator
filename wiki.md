@@ -205,8 +205,23 @@ through untouched rather than guessed at.
   `(kart_no, avg_lap, best_lap, kart_class, total_laps, run_hours)`.
 - **Lap times decide whether a row survives.** `Average Lap Time` and `Best Lap Time` are
   parsed first; if either is unusable the row is `continue`d, because a kart with no time
-  can't be ranked. Lap times always arrive as plain `xx.xxx` / `xxx.xxx` decimals, so no
-  time-format handling is needed or wanted here.
+  can't be ranked.
+
+  > **Input guarantee (from the league operator, 2026-08-14): a lap-time cell is always a
+  > plain decimal in `xx.xxx` or `xxx.xxx` form.** Never `mm:ss`, never `1:22.101`, never
+  > `DNF` or `--`. Seconds to three places, two or three integer digits.
+  >
+  > This is a fact about the Clubspeed export, not something the code can tell you, and it
+  > is why `parse_number()` is the whole of the lap-time parsing. **Do not add `mm:ss`
+  > handling, unit stripping, or a lap-time regex** — there is nothing for them to catch,
+  > and each one is a new way to misread a good value.
+  >
+  > It also bounds the layout: `999.999` is the widest possible lap time, so the `:<15.3f`
+  > fields can't overflow their columns.
+  >
+  > What it does **not** cover is an *absent* value. A kart that ran no laps still yields a
+  > blank cell (pandas NaN), which is a missing value rather than a different format — that
+  > is the case the row-skip above exists for, and it stays.
 - `total_laps` (from `# Laps`) and `run_hours` (from `Total Hour`) are parsed *leniently* —
   a blank there costs the kart one cell (rendered `-` by `format_run_time` /
   `format_total_laps`), not its row.

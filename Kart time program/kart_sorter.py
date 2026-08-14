@@ -267,8 +267,10 @@ def read_xls():
         ]
         for _, row in df.iloc[1:].iterrows():
             # Lap times decide whether a row is usable at all -- a kart with no
-            # time can't be ranked, so it's dropped. They arrive as plain
-            # xx.xxx / xxx.xxx decimals, so parse_number is all that's needed;
+            # time can't be ranked, so it's dropped. Per the league operator a
+            # lap time is ALWAYS a plain xx.xxx / xxx.xxx decimal -- never mm:ss,
+            # never "DNF" -- so parse_number is all that's needed and a time
+            # parser here would only be a new way to misread a good value;
             # its NaN rejection is the point here, because a blank cell reaches
             # this loop as NaN and float() would accept it, keeping an unrankable
             # kart in the list where it silently scrambles the sort order.
