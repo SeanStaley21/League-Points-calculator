@@ -5,7 +5,8 @@ Last generated: 2026-07-09. Last updated: 2026-08-14 (§0 — worktree-per-task 
 made a repo-wide rule; §3/§3A — the kartTimeCinci input-selection and console-lifecycle
 improvements were backported into `kart_sorter.py`, with its kart classification ranges
 deliberately left unchanged; §3.4/§3.5/§3A — `kart_sorter.py` alone gained printer
-detection with a terminal fallback).
+detection with a terminal fallback; §3.2/§3.3/§3A — the report gained `Run Time` and
+`Total Laps` columns in **both** builds).
 
 ---
 
@@ -50,6 +51,11 @@ Two standing conventions that apply to every branch before it merges:
 - **Rebuild and commit the affected `.exe`** if you changed `kart_sorter.py` or
   `kartTimeCinci.py` — the committed binary is what operators actually run, so a
   source-only commit ships nothing (§6).
+
+> ⚠️ **Both `.exe`s are currently behind their source.** The `Run Time` / `Total Laps`
+> columns (2026-08-14, §3.3) were committed source-only at the user's request. Until
+> `dist/kart_sorter.exe` and `dist/kartTimeCinci.exe` are rebuilt with PyInstaller (§6),
+> operators still get the old four-column report.
 
 ---
 
@@ -159,8 +165,17 @@ manually/elsewhere.
   totals row.
 - For each remaining row: strips commas from the lap-time fields (so `"1,229"`
   parses as `1229.0`), classifies the kart via `get_kart_class`, and appends a tuple
-  `(kart_no, avg_lap, best_lap, kart_class)`.
-- Rows that fail to parse (`ValueError`/`KeyError`) are silently skipped.
+  `(kart_no, avg_lap, best_lap, kart_class, total_laps, run_hours)`.
+- Rows whose **kart number or lap times** fail to parse (`ValueError`/`KeyError`) are
+  silently skipped.
+- `total_laps` (from `# Laps`) and `run_hours` (from `Total Hour`) are parsed *outside*
+  that `try`, via `parse_number()`, which returns `None` rather than raising. This is
+  deliberate: parsing them inside the `try` would make its `continue` drop a kart from
+  the report entirely just because one of those cells was blank. A bad value costs the
+  kart one cell (rendered `-` by `format_run_time` / `format_total_laps`), not its row.
+- The two new fields are appended at **indices 4 and 5**, at the end of the tuple, on
+  purpose — downstream code indexes this tuple positionally (`x[2]` is the sort key,
+  `k[3]` the class filter, see §3.3), so inserting anywhere else would break it.
 - If an error occurs while parsing, it prints the error and returns whatever it
   collected (possibly an empty list).
 
@@ -171,9 +186,26 @@ manually/elsewhere.
   - Filters karts belonging to that class.
   - Sorts them ascending by **best lap time** (index `2` of the tuple) — fastest
     first.
-  - Writes a banner + a fixed-width table (`Rank`, `Kart No`, `Avg Lap`, `Best Lap`)
-    to the text file.
+  - Writes a banner + a fixed-width table (`Rank`, `Kart No`, `Avg Lap`, `Best Lap`,
+    `Run Time`, `Total Laps`) to the text file. The banner/rule width is `78`, sized to
+    the six columns and still inside an 80-column printed page — if a column is ever
+    added or widened, that `78` has to move with it.
 - Returns the output filepath.
+
+**`Run Time` / `Total Laps` (added 2026-08-14, both builds).** Both values come straight
+from the Clubspeed export and needed no new data source — `Run Time` is the `Total Hour`
+column and `Total Laps` is `# Laps`; `read_xls()` simply used to discard them (§3.2).
+Two helpers render them:
+
+| Helper | Input | Output |
+|--------|-------|--------|
+| `parse_number(value)` | any cell, incl. thousands-separated `"1,229"` | `float`, or `None` if unparseable |
+| `format_run_time(hours)` | decimal hours from `Total Hour`, e.g. `8.79` | `"8h 47m"` (`"-"` if `None`) |
+| `format_total_laps(laps)` | lap count, e.g. `1229.0` | `"1229"` (`"-"` if `None`) |
+
+The export gives run time as **decimal hours**; it is converted to hours + minutes for
+the printout because that's what the operator reads off paper. `format_run_time` rounds
+minutes and carries `60` up to the next hour, so `8.999` prints `9h 00m`, never `8h 60m`.
 
 ### 3.4 Printing: `default_printer_status()`, `print_file()`, `show_in_terminal()`
 
@@ -332,7 +364,9 @@ current list:
 **Still identical in both builds** (documented in §3, don't re-document as differences):
 newest-`.xls` input selection, `print_file` itself returning dispatch success/failure
 with the dispatched-≠-printed caveat, close-on-successful-print, the no-data message,
-and the `try/except` wrapper around `main()`.
+the `try/except` wrapper around `main()`, and the report's six columns including
+`Run Time` / `Total Laps` with their `parse_number` / `format_run_time` /
+`format_total_laps` helpers (added to both files in lockstep, 2026-08-14 — §3.2, §3.3).
 
 **If you change one of those shared behaviors, change it in both files** — unless you are
 deliberately diverging, in which case record it here as a numbered difference the way

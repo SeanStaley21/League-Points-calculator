@@ -28,6 +28,34 @@ def get_kart_class(kart_no):
     except ValueError:
         return "Other"
 
+def parse_number(value):
+    """Parse a numeric cell from the export, or None if it isn't a number.
+
+    Values above 999 arrive thousands-separated and quoted ("1,229"), so commas
+    are stripped before conversion -- the same idiom the lap-time fields use.
+    """
+    try:
+        return float(str(value).replace(',', '').strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def format_run_time(hours):
+    """Render the export's decimal 'Total Hour' value as '8h 47m'."""
+    if hours is None:
+        return "-"
+    whole = int(hours)
+    minutes = int(round((hours - whole) * 60))
+    if minutes == 60:  # 8.999 -> 9h 00m, not 8h 60m
+        whole, minutes = whole + 1, 0
+    return f"{whole}h {minutes:02d}m"
+
+
+def format_total_laps(laps):
+    """Render the export's '# Laps' value as a plain integer."""
+    return "-" if laps is None else f"{int(laps)}"
+
+
 def read_xls():
     """Read the newest *.xls export from the user's Downloads folder.
 
@@ -55,10 +83,17 @@ def read_xls():
                 kart_no = str(row['Kart No'])
                 avg_lap = float(str(row['Average Lap Time']).replace(',', ''))
                 best_lap = float(str(row['Best Lap Time']).replace(',', ''))
-                kart_class = get_kart_class(kart_no)
-                kart_data.append((kart_no, avg_lap, best_lap, kart_class))
             except (ValueError, KeyError):
                 continue
+            # Run time and lap count are parsed leniently, outside the try above:
+            # a kart with a blank or malformed 'Total Hour' should lose that one
+            # cell (rendered as "-"), not disappear from the report entirely.
+            total_laps = parse_number(row.get('# Laps'))
+            run_hours = parse_number(row.get('Total Hour'))
+            kart_class = get_kart_class(kart_no)
+            kart_data.append(
+                (kart_no, avg_lap, best_lap, kart_class, total_laps, run_hours)
+            )
     except Exception as e:
         print(f"Error reading HTML table: {e}")
     return kart_data
@@ -82,13 +117,21 @@ def save_kart_tables(kart_data):
             class_karts = [k for k in kart_data if k[3] == kart_class]
             if class_karts:
                 sorted_karts = sorted(class_karts, key=lambda x: x[2])
-                f.write(f"{'='*60}\n")
+                f.write(f"{'='*78}\n")
                 f.write(f"{kart_class} Karts\n")
-                f.write(f"{'='*60}\n")
-                f.write(f"{'Rank':<8} {'Kart No':<12} {'Avg Lap':<15} {'Best Lap':<15}\n")
-                f.write(f"{'-'*60}\n")
-                for rank, (kart_no, avg_lap, best_lap, _) in enumerate(sorted_karts, start=1):
-                    f.write(f"{rank:<8} {kart_no:<12} {avg_lap:<15.3f} {best_lap:<15.3f}\n")
+                f.write(f"{'='*78}\n")
+                f.write(
+                    f"{'Rank':<8} {'Kart No':<12} {'Avg Lap':<15} {'Best Lap':<15} "
+                    f"{'Run Time':<12} {'Total Laps':<10}\n"
+                )
+                f.write(f"{'-'*78}\n")
+                for rank, (kart_no, avg_lap, best_lap, _, total_laps, run_hours) in enumerate(
+                    sorted_karts, start=1
+                ):
+                    f.write(
+                        f"{rank:<8} {kart_no:<12} {avg_lap:<15.3f} {best_lap:<15.3f} "
+                        f"{format_run_time(run_hours):<12} {format_total_laps(total_laps):<10}\n"
+                    )
 
     print(f"Results saved to: {output_filepath}")
     return output_filepath
