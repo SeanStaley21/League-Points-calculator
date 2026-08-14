@@ -1,7 +1,9 @@
 # League Points Calculator — Wiki
 
 Source of truth for what's in this repository, how it works, and what it's for.
-Last generated: 2026-07-09. Last updated: 2026-08-01 (§3A — kartTimeCinci build).
+Last generated: 2026-07-09. Last updated: 2026-08-14 (§3/§3A — the kartTimeCinci
+input-selection and console-lifecycle improvements were backported into
+`kart_sorter.py`; its kart classification ranges were deliberately left unchanged).
 
 ---
 
@@ -49,9 +51,9 @@ League-Points-calculator/
 │   ├── cincinatti fleet divisions.txt Cincinnati kart-number division ranges — source spec for kartTimeCinci (§3A)
 │   ├── build/                         PyInstaller intermediate build cache — gitignored, regenerated locally by `pyinstaller --onefile kart_sorter.py`
 │   └── dist/                          PyInstaller output — what end users actually run
-│       └── kart_sorter.exe            The compiled, distributable program (~53 MB)
+│       └── kart_sorter.exe            The compiled, distributable program (~33 MB)
 ├── kartTimeCinci/                     Cincinnati-fleet variant of the kart sorter — see §3A
-│   ├── kartTimeCinci.py              Source (adapted from kart_sorter.py; new fleet ranges + newest-.xls input + auto-close)
+│   ├── kartTimeCinci.py              Source (adapted from kart_sorter.py; differs only in fleet ranges + output filename)
 │   ├── kartTimeCinci.spec            PyInstaller spec (generated as a build byproduct)
 │   ├── build/                        PyInstaller intermediate cache — gitignored, regenerated locally
 │   └── dist/
@@ -69,8 +71,12 @@ As of the 2026-07-09 cleanup, the PyInstaller `build/` cache and the duplicate
 
 ## 3. `kart_sorter.py` — how it actually works
 
-This is the only source file in the repo (94 lines of logic + a few trailing
-comments). It has four functions and a `main()`.
+The Full Throttle build of the kart sorter. It has four functions and a `main()`.
+
+> **Changed 2026-08-14.** The input-selection and console-lifecycle improvements first
+> written for the Cincinnati build (§3A) were backported here. `get_kart_class` and the
+> output filename were **deliberately left alone** — the Full Throttle kart list is
+> unchanged. See §3.2, §3.4, §3.5.
 
 ### 3.1 `get_kart_class(kart_no)`
 Classifies a kart number into a league division purely by numeric range:
@@ -88,9 +94,16 @@ grouped. Note it does **not** match the xlsx workbook's finer-grained divisions
 manually/elsewhere.
 
 ### 3.2 `read_xls()`
-- Looks for a file literally named **`Excel.xls`** in the current Windows user's
-  `Downloads` folder (`~/Downloads/Excel.xls`) — the filename is hard-coded, not
-  passed as an argument or prompted for.
+- Scans the current Windows user's `Downloads` folder for **all `*.xls` files** and
+  reads the **most recently modified** one (`glob.glob` + `max(..., key=os.path.getmtime)`).
+  The operator no longer has to rename the Clubspeed export to `Excel.xls` — they just
+  download it and run. The chosen filename is echoed to the console
+  (`Reading newest .xls export: <name>`) so it's obvious which file was used.
+- If no `*.xls` exists at all it prints `"No .xls export found in Downloads: <path>"`
+  and returns an empty list, falling through to the no-data path in `main()`.
+- The "newest wins" heuristic does **not** validate that the file is actually a kart
+  export. An unrelated `.xls` that happens to be newest will fail `pandas.read_html`,
+  get caught, and land on the same no-data path.
 - Loads it with `pandas.read_html()`, i.e. it expects an HTML table saved with an
   `.xls` extension (this is the typical export format from Clubspeed-style timing
   systems, which produce HTML tables that Excel/Windows treats as legacy `.xls`).
@@ -102,8 +115,8 @@ manually/elsewhere.
   parses as `1229.0`), classifies the kart via `get_kart_class`, and appends a tuple
   `(kart_no, avg_lap, best_lap, kart_class)`.
 - Rows that fail to parse (`ValueError`/`KeyError`) are silently skipped.
-- If the file isn't found or another error occurs while parsing, it prints an error
-  and returns whatever it collected (possibly an empty list).
+- If an error occurs while parsing, it prints the error and returns whatever it
+  collected (possibly an empty list).
 
 ### 3.3 `save_kart_tables(kart_data)`
 - Writes output to `~/Downloads/Kart_Results_<MM DD YYYY>.txt` (today's date, e.g.
@@ -120,18 +133,34 @@ manually/elsewhere.
 - Calls `os.startfile(filepath, "print")` — a Windows-only API that hands the file
   to whatever application is associated with `.txt` and tells it to print using the
   **default printer**, with no print-preview or confirmation step.
+- Returns `True` if the job was **dispatched**, `False` if it could not be (catches
+  `OSError`). `main()` uses this return value to decide whether to close.
+- Important caveat: `True` means "dispatched," not "paper came out." `os.startfile`
+  wraps Windows `ShellExecuteW` and returns as soon as the print handler launches. It
+  only raises `OSError` when no print verb is registered for `.txt`. A **missing,
+  offline, or paused default printer does not raise** — the handler launches fine and
+  fails later in its own UI. This is the strongest signal Windows exposes without a
+  heavier print API.
 
 ### 3.5 `main()`
+The whole body is wrapped in a `try/except Exception`, so an unexpected error (e.g. a
+file-write failure) prints its message and holds the window rather than slamming a
+double-clicked `.exe` shut before it can be read.
+
 1. `read_xls()` → get parsed kart data.
-2. If any data was found: `save_kart_tables()` then immediately `print_file()`.
-3. If no data was found: print `"No kart data found."`.
-4. `input("\nPress Enter to exit...")` — keeps the console window open (this is a
-   double-clicked `.exe`, not run from a terminal, so without this the window would
-   flash and close).
+2. **No data** → print `"No kart data found."` plus a hint to check that the `.xls`
+   export is in Downloads, then wait for Enter. This path deliberately does **not**
+   say "could not print" — nothing was ever sent to a printer.
+3. **Data found** → `save_kart_tables()`, then `print_file()`.
+   - **Dispatch succeeded** → return immediately; the console **closes on its own**,
+     with no "Press Enter" prompt. This is the normal, everyday path.
+   - **Dispatch failed** → print `"Could not print"` and wait for Enter.
+
+The net effect: a clean run is silent and self-closing, and the window only ever
+sticks around when there is something the operator needs to read.
 
 ### 3.6 Trailing comments in the file (build notes, not code)
-The bottom of `kart_sorter.py` (lines 98–105) contains developer notes, not
-functional code:
+The bottom of `kart_sorter.py` contains developer notes, not functional code:
 ```
 File path: C:\Users\Asalt\OneDrive - Full Throttle Adrenaline Park\excel stuff\leagues\League-Points-calculator\Kart time program
 compile code: "C:\Users\Asalt\AppData\Local\Programs\Python\Python313\python.exe" -m PyInstaller --onefile kart_sorter.py
@@ -146,15 +175,19 @@ This tells you exactly how `dist/kart_sorter.exe` is (re)built: `pyinstaller --o
 a **different location running a different kart fleet** (Cincinnati). It is a close
 adaptation of `kart_sorter.py` (§3) — same functions (`get_kart_class`, `read_xls`,
 `save_kart_tables`, `print_file`, `main`), same Clubspeed HTML-table `.xls` input
-format, same fixed-width `.txt` report, same print-to-default-printer flow. The
-original `Kart time program/` is untouched; this is a sibling, not a replacement.
+format, same fixed-width `.txt` report, same print-to-default-printer flow. It is a
+sibling of `Kart time program/`, not a replacement — both are shipped and both are
+used, at their respective locations.
 
 The division ranges come from `Kart time program/cincinatti fleet divisions.txt` and
 are **baked into the code** (hardcoded, like the original — no external config file to
 lose as a single `.exe`).
 
-It differs from `kart_sorter.py` in **four** ways (do **not** describe it as "same
-`Excel.xls` input, differs only in classification"):
+**Changed 2026-08-14.** This section used to list *four* differences from
+`kart_sorter.py`. Two of them — newest-`.xls` input selection and the console
+lifecycle — were general improvements that had nothing to do with Cincinnati, so they
+were **backported into `kart_sorter.py`** (§3.2, §3.4, §3.5) and are now **shared
+behavior**, not differences. What remains is genuinely fleet-specific:
 
 1. **Classification ranges (`get_kart_class`)** — the Cincinnati fleet:
 
@@ -167,36 +200,23 @@ It differs from `kart_sorter.py` in **four** ways (do **not** describe it as "sa
    | anything else (0–1, 10, 81–89, 100+, non-numeric) | `Other` |
 
    Class print order is `Pro, Junior, Intermediate, Unknown, Other`; empty classes
-   are skipped, as in the original.
+   are skipped, as in the original. Note the extra `Unknown` class — the Full Throttle
+   build has no such class and its four-entry `classes` list is
+   `Pro, Junior, Intermediate, Other`.
 
-2. **Input selection (`read_xls`)** — instead of a file that must be named
-   `Excel.xls`, it scans `~/Downloads` for **all `*.xls` files** and reads the **most
-   recently modified** one (`max(..., key=os.path.getmtime)`), so the operator can
-   just download the export and run without renaming. If no `*.xls` exists it prints
-   "No .xls export found in Downloads" and falls through to the no-data path. The
-   "newest wins" heuristic does **not** validate the file is actually a kart export —
-   an unrelated/binary `.xls` that happens to be newest will fail `pandas.read_html`,
-   get caught, and land on the no-data path.
+2. **Output filename** — `~/Downloads/KartTimeCinci_Results_<MM DD YYYY>.txt`,
+   deliberately distinct from the original's `Kart_Results_<date>.txt` so running both
+   tools on the same day doesn't clobber one report. This is why the backport left the
+   original's filename alone.
 
-3. **Output filename** — `~/Downloads/KartTimeCinci_Results_<MM DD YYYY>.txt`
-   (distinct from the original's `Kart_Results_<date>.txt`, so running both tools the
-   same day doesn't clobber one report).
+**Now identical in both builds** (documented in §3, don't re-document as differences):
+newest-`.xls` input selection, `print_file` returning dispatch success/failure with
+the dispatched-≠-printed caveat, close-on-successful-print, the distinct no-data and
+"Could not print" messages, and the `try/except` wrapper around `main()`.
 
-4. **Console lifecycle (`print_file` + `main`)** — the unconditional
-   "Press Enter to exit" is gone. On a **successful print the console closes
-   immediately**; it only stays open, with a **distinct** message, on:
-   - **No data** → `"No kart data found."` + a Downloads hint (nothing was sent to a
-     printer, so it deliberately does **not** say "Could not print").
-   - **Failed print dispatch** → `"Could not print"`.
-   - **Any uncaught exception** → the error, held by a `try/except` wrapping all of
-     `main()` (without this, an error in a double-clicked `.exe` would slam the window
-     shut before it could be read).
-
-   Caveat: `print_file` returning success means the job was *dispatched* to the
-   default printer, not that paper came out. `os.startfile(path, "print")` only raises
-   `OSError` when no print verb is registered for `.txt`; a **missing/offline/paused
-   default printer does not raise** — Windows exposes no stronger signal without a
-   heavier print API.
+**If you change one of the shared behaviors, change it in both files.** They are
+independent copies, not a shared module — that is intentional (each ships as a
+self-contained single-file `.exe`), but it means the two can silently drift.
 
 **Build:** from inside `kartTimeCinci/`, `python -m PyInstaller --onefile
 kartTimeCinci.py` (Python 3.13). This produces `dist/kartTimeCinci.exe` (~33 MB) and
@@ -243,11 +263,11 @@ used to also exist as a byte-for-byte duplicate at `Kart time program/dist/kart
 operation.csv` — that duplicate was deleted on 2026-07-09 (see §7).
 
 **Inconsistency that was found and fixed:** `kart_sorter.py` never reads a `.csv` file
-at all — it only reads `~/Downloads/Excel.xls` via `pandas.read_html`. `README.md`
-previously instructed the end user to convert the Clubspeed export to `.csv`, which
-didn't match the code. The README has been corrected to say the export should be
-saved as `Excel.xls` in the Downloads folder (matching the actual hard-coded
-filename/format in `read_xls()`).
+at all — it only reads `.xls` (an HTML table) via `pandas.read_html`. `README.md`
+originally instructed the end user to convert the Clubspeed export to `.csv`, which
+didn't match the code; it was corrected on 2026-07-09 to say `Excel.xls`, and updated
+again on 2026-08-14 when `read_xls()` stopped requiring that specific filename (§3.2)
+— the export now just has to be the newest `.xls` in Downloads, under any name.
 
 ---
 
@@ -268,12 +288,12 @@ binary blobs and ~7,000-line `.toc` text diffs re-committed on nearly every chan
 - A root-level `.gitignore` was added with `Kart time program/build/` in it, so the
   cache won't get re-committed on the next build.
 
-**What was kept:** `Kart time program/dist/kart_sorter.exe` (~53 MB) is still
-committed — it's the actual shippable artifact end users double-click, per the
-README, and there's no GitHub Releases workflow set up as an alternative distribution
-path. It will still grow the repo/history on every rebuild; if that becomes a problem
-later, moving distribution to GitHub Releases and gitignoring `dist/` too is the next
-lever to pull.
+**What was kept:** `Kart time program/dist/kart_sorter.exe` (~33 MB as currently
+built — earlier history carried larger blobs) is still committed — it's the actual
+shippable artifact end users double-click, per the README, and there's no GitHub
+Releases workflow set up as an alternative distribution path. It will still grow the
+repo/history on every rebuild; if that becomes a problem later, moving distribution to
+GitHub Releases and gitignoring `dist/` too is the next lever to pull.
 
 ---
 
@@ -301,13 +321,16 @@ Nothing else in the repo was found to be duplicated or dead: `kart_sorter.py`,
 ## 8. Quick reference: end-to-end workflow (as documented today)
 
 1. Operator pulls lap-time results from Clubspeed at the track.
-2. Saves the export to the Windows **Downloads** folder as `Excel.xls`.
+2. Saves the export to the Windows **Downloads** folder. **No renaming needed** — any
+   filename works, as long as it's the newest `.xls` there.
 3. Double-clicks `Kart time program/dist/kart_sorter.exe`.
-4. Program reads `~/Downloads/Excel.xls`, classifies each kart as Pro / Junior /
+4. Program reads the newest `~/Downloads/*.xls`, classifies each kart as Pro / Junior /
    Intermediate / Other by kart number, ranks each class by best lap time.
 5. Writes `~/Downloads/Kart_Results_<date>.txt` and immediately sends it to the
    default printer.
-6. Console prompts "Press Enter to exit."
+6. On a successful print the console **closes by itself**. It only stays open — showing
+   "No kart data found.", "Could not print", or an error — when something needs
+   reading.
 7. Separately (no code link), the operator manually transcribes/keys weekly
    results and standings into `league template.xlsx` to track season-long league
    points across `Division 1/2/3` and `Juniors`.

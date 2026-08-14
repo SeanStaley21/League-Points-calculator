@@ -1,8 +1,20 @@
 import os
+import glob
 import pandas as pd
 from datetime import datetime
 
 def get_kart_class(kart_no):
+    """Classify a kart number into a Full Throttle-fleet division by numeric range.
+
+    Full Throttle fleet:
+        Pro          11-28
+        Junior       70-78
+        Intermediate 95-98
+        else         Other  (anything outside the above, or non-numeric)
+
+    These ranges are deliberately different from the Cincinnati fleet's -- see
+    kartTimeCinci/kartTimeCinci.py for that build. Do not merge the two.
+    """
     try:
         num = int(kart_no)
         if 11 <= num <= 28:
@@ -17,10 +29,21 @@ def get_kart_class(kart_no):
         return "Other"
 
 def read_xls():
+    """Read the newest *.xls export from the user's Downloads folder.
+
+    Instead of a fixed 'Excel.xls' filename, this picks the most recently
+    modified *.xls in Downloads, so the operator can just download the Clubspeed
+    export and run without renaming it. The export is an HTML table saved with an
+    .xls extension, parsed via pandas.read_html.
+    """
     downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-    filename = "Excel.xls"
-    filepath = os.path.join(downloads_folder, filename)
+    xls_files = glob.glob(os.path.join(downloads_folder, "*.xls"))
     kart_data = []
+    if not xls_files:
+        print(f"No .xls export found in Downloads: {downloads_folder}")
+        return kart_data
+    filepath = max(xls_files, key=os.path.getmtime)
+    print(f"Reading newest .xls export: {os.path.basename(filepath)}")
     try:
         tables = pd.read_html(filepath, header=None)
         df = tables[0]
@@ -36,8 +59,6 @@ def read_xls():
                 kart_data.append((kart_no, avg_lap, best_lap, kart_class))
             except (ValueError, KeyError):
                 continue
-    except FileNotFoundError:
-        print(f"Could not find 'Excel.xls' in your Downloads folder: {filepath}")
     except Exception as e:
         print(f"Error reading HTML table: {e}")
     return kart_data
@@ -73,21 +94,49 @@ def save_kart_tables(kart_data):
     return output_filepath
 
 def print_file(filepath):
-    """Automatically print the file using Windows default printer"""
+    """Send the file to the Windows default printer.
+
+    Returns True if the print job was successfully *dispatched* to the print
+    handler, False if it could not be dispatched.
+
+    Limitation: os.startfile calls Windows ShellExecuteW and returns as soon as
+    the print handler is launched. It only raises OSError when no print verb is
+    registered for .txt (the no-association case). A missing, offline, or paused
+    default printer does NOT raise here -- the handler launches fine and fails
+    later in its own UI. So True means "dispatched," not "paper came out"; it's
+    the strongest signal Windows exposes without a heavier print API.
+    """
     try:
         os.startfile(filepath, "print")
         print(f"Sending {os.path.basename(filepath)} to printer...")
-    except Exception as e:
+        return True
+    except OSError as e:
         print(f"Error printing file: {e}")
+        return False
 
 def main():
-    kart_data = read_xls()
-    if kart_data:
+    try:
+        kart_data = read_xls()
+        if not kart_data:
+            # No .xls found, unreadable, or wrong format -- nothing was printed,
+            # so this is NOT a "could not print" case.
+            print("No kart data found.")
+            print("Check that the .xls export is in your Downloads folder.")
+            input("\nPress Enter to exit...")
+            return
+
         output_file = save_kart_tables(kart_data)
-        print_file(output_file)
-    else:
-        print("No kart data found.")
-    input("\nPress Enter to exit...")
+        if print_file(output_file):
+            # Successful dispatch -- close immediately, no prompt.
+            return
+        # Print could not be dispatched -- keep the window open with the error.
+        print("Could not print")
+        input("\nPress Enter to exit...")
+    except Exception as e:
+        # Catch-all so an unexpected error (e.g. a file-write failure) never
+        # slams the double-clicked console window shut before it can be read.
+        print(f"Unexpected error: {e}")
+        input("\nPress Enter to exit...")
 
 if __name__ == "__main__":
     main()
