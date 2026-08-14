@@ -8,7 +8,10 @@ deliberately left unchanged; §3.5/§3.6/§3A — `kart_sorter.py` alone gained 
 detection with a terminal fallback; §3.2/§3.4/§3A — the report gained `Run Time` and
 `Total Laps` columns in **both** builds; §3.3/§3A/§8 — both builds now delete their own
 report `.txt` files older than 24 hours on every run, and §3's subsections were
-renumbered to fit the new function in).
+renumbered to fit the new function in; §3.1/§3.2 — a two-agent logic review found three
+high-severity bugs shared by both builds, all fixed the same day: NaN cells crashing the
+write mid-report, NaN lap times silently scrambling the ranking, and `"12.0"` kart numbers
+classifying as `Other`).
 
 ---
 
@@ -125,10 +128,10 @@ As of the 2026-07-09 cleanup, the PyInstaller `build/` cache and the duplicate
 
 ## 3. `kart_sorter.py` — how it actually works
 
-The Full Throttle build of the kart sorter. Thirteen functions and a `main()`: four for
+The Full Throttle build of the kart sorter. Fourteen functions and a `main()`: four for
 the core sort-and-report job (`get_kart_class`, `read_xls`, `save_kart_tables`,
-`print_file`), three formatting helpers for the report columns (`parse_number`,
-`format_run_time`, `format_total_laps`), one for housekeeping
+`print_file`), four parsing/formatting helpers for the report columns (`parse_number`,
+`format_kart_no`, `format_run_time`, `format_total_laps`), one for housekeeping
 (`cleanup_old_reports`), and five for printer detection and the terminal fallback
 (`get_default_printer`, `list_printers`, `is_virtual_printer`,
 `default_printer_status`, `show_in_terminal`). Everything but the first four was added
@@ -157,6 +160,16 @@ grouped. Note it does **not** match the xlsx workbook's finer-grained divisions
 (`Pro 1`, `Pro 2`, `Pro 3`, `Division 1/2/3` — see §4), which are apparently assigned
 manually/elsewhere.
 
+**The kart number is parsed with `parse_number()`, not `int()` (fixed 2026-08-14).**
+`int("12.0")` raises `ValueError`, and pandas hands back `"12.0"` whenever it types the
+`Kart No` column as numeric — which happens for any export where the header row isn't
+consumed as data. The old bare `int()` turned that `ValueError` into `"Other"` *for every
+kart*, collapsing the whole report into a single `Other` section with kart numbers printed
+as `12.0`, `70.0`. Going through `parse_number` (§3.2) means `"12"`, `"12.0"` and `12.0`
+all classify as kart 12. `format_kart_no()` does the matching job on the display side, so
+the report prints `12` rather than `12.0`; a kart id that isn't a whole number is passed
+through untouched rather than guessed at.
+
 ### 3.2 `read_xls()`
 - Scans the current Windows user's `Downloads` folder for **all `*.xls` files** and
   reads the **most recently modified** one (`glob.glob` + `max(..., key=os.path.getmtime)`).
@@ -175,16 +188,40 @@ manually/elsewhere.
   `Kart No, # Heats, # Laps, Average Lap Time, Best Lap Time, Total Hour`.
 - Skips the first data row (`df.iloc[1:]`), assuming it's a repeated header or
   totals row.
-- For each remaining row: strips commas from the lap-time fields (so `"1,229"`
-  parses as `1229.0`), classifies the kart via `get_kart_class`, and appends a tuple
+
+  > ⚠️ **Known gap (found 2026-08-14, not yet fixed).** That drop is positional and
+  > unvalidated. `pd.read_html(..., header=None)` does *not* mean "no header": if the
+  > export ever wraps its header in `<thead>`/`<th>`, pandas consumes it as the header,
+  > row 0 becomes the **first real kart**, and `iloc[1:]` deletes it from the report with
+  > no error. Verified reproducible; it doesn't fire today only because the current
+  > Clubspeed export repeats its header as plain `<td>` cells. The fix is to drop row 0
+  > only when it *doesn't* look like a kart (e.g. its `Kart No` doesn't parse), which
+  > makes it self-correcting. Related: `tables[0]` assumes the data grid is the first
+  > table in the document, and the forced `df.columns = [...]` rename is positional with
+  > the real header text discarded unread — a reordered column would be read as the wrong
+  > field and printed without complaint.
+- For each remaining row: parses every cell through `parse_number()`, classifies the kart
+  via `get_kart_class`, and appends a tuple
   `(kart_no, avg_lap, best_lap, kart_class, total_laps, run_hours)`.
-- Rows whose **kart number or lap times** fail to parse (`ValueError`/`KeyError`) are
-  silently skipped.
-- `total_laps` (from `# Laps`) and `run_hours` (from `Total Hour`) are parsed *outside*
-  that `try`, via `parse_number()`, which returns `None` rather than raising. This is
-  deliberate: parsing them inside the `try` would make its `continue` drop a kart from
-  the report entirely just because one of those cells was blank. A bad value costs the
-  kart one cell (rendered `-` by `format_run_time` / `format_total_laps`), not its row.
+- **Lap times decide whether a row survives.** `Average Lap Time` and `Best Lap Time` are
+  parsed first; if either is unusable the row is `continue`d, because a kart with no time
+  can't be ranked. Lap times always arrive as plain `xx.xxx` / `xxx.xxx` decimals, so no
+  time-format handling is needed or wanted here.
+- `total_laps` (from `# Laps`) and `run_hours` (from `Total Hour`) are parsed *leniently* —
+  a blank there costs the kart one cell (rendered `-` by `format_run_time` /
+  `format_total_laps`), not its row.
+- **`parse_number()` rejects NaN and infinity, not just unparseable text — this is the
+  load-bearing part, don't "simplify" it back to a bare `float()` (fixed 2026-08-14).**
+  A blank cell arrives as a pandas NaN; `str(NaN)` is the string `"nan"`, which `float()`
+  *accepts*. Two separate high-severity bugs came out of that one fact:
+  - a blank `Total Hour` or `# Laps` produced `NaN` instead of `None`, the `is None`
+    guards missed it, and `int(NaN)` raised **inside the `with open(...)` block** — so the
+    run died mid-write leaving a truncated but well-formed-looking report in Downloads
+    (with the previous day's report already deleted), and the operator got only
+    "Unexpected error: cannot convert float NaN to integer".
+  - a blank lap time sailed past the row-skip and entered the sort as `NaN`. Every NaN
+    comparison is False, so the sort silently scrambled: **the fastest kart in a class
+    could print mid-table**, with `nan` in the lap-time column and no error at all.
 - The two new fields are appended at **indices 4 and 5**, at the end of the tuple, on
   purpose — downstream code indexes this tuple positionally (`x[2]` is the sort key,
   `k[3]` the class filter, see §3.4), so inserting anywhere else would break it.
@@ -417,9 +454,11 @@ newest-`.xls` input selection, the 24-hour `cleanup_old_reports()` sweep and whe
 called from in `main()` (§3.3 — same logic, only the prefix differs), `print_file` itself
 returning dispatch success/failure with the dispatched-≠-printed caveat,
 close-on-successful-print, the no-data message, the `try/except` wrapper around `main()`,
-and the report's six columns including `Run Time` / `Total Laps` with their
-`parse_number` / `format_run_time` / `format_total_laps` helpers (added to both files in
-lockstep, 2026-08-14 — §3.2, §3.4).
+the report's six columns including `Run Time` / `Total Laps` with their `parse_number` /
+`format_kart_no` / `format_run_time` / `format_total_laps` helpers, and the
+NaN-rejection + kart-number-parsing fixes of 2026-08-14 (§3.1, §3.2) — all added to both
+files in lockstep. The `read_xls` row loop is now character-for-character identical in the
+two builds; if you touch it in one, port it to the other the same day.
 
 **If you change one of those shared behaviors, change it in both files** — unless you are
 deliberately diverging, in which case record it here as a numbered difference the way

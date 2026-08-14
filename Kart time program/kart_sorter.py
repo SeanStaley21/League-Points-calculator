@@ -1,5 +1,6 @@
 import os
 import glob
+import math
 import ctypes
 from ctypes import wintypes
 import pandas as pd
@@ -170,30 +171,60 @@ def get_kart_class(kart_no):
 
     These ranges are deliberately different from the Cincinnati fleet's -- see
     kartTimeCinci/kartTimeCinci.py for that build. Do not merge the two.
+
+    The number goes through parse_number rather than a bare int(): pandas hands
+    back "12.0" for a Kart No column it typed as numeric, and int("12.0") raises
+    ValueError. That used to mean every kart in such an export fell through to
+    "Other" and the whole report collapsed into one section.
     """
-    try:
-        num = int(kart_no)
-        if 11 <= num <= 28:
-            return "Pro"
-        elif 70 <= num <= 78:
-            return "Junior"
-        elif 95 <= num <= 98:
-            return "Intermediate"
-        else:
-            return "Other"
-    except ValueError:
+    num = parse_number(kart_no)
+    if num is None:
+        return "Other"
+    num = int(num)
+    if 11 <= num <= 28:
+        return "Pro"
+    elif 70 <= num <= 78:
+        return "Junior"
+    elif 95 <= num <= 98:
+        return "Intermediate"
+    else:
         return "Other"
 
 def parse_number(value):
-    """Parse a numeric cell from the export, or None if it isn't a number.
+    """Parse a numeric cell from the export, or None if it isn't a usable number.
 
     Values above 999 arrive thousands-separated and quoted ("1,229"), so commas
     are stripped before conversion -- the same idiom the lap-time fields use.
+
+    NaN and infinity are rejected as hard as unparseable text is. This matters
+    because a blank cell reaches here as a pandas NaN, and str(NaN) is the string
+    "nan", which float() happily accepts -- so without the isfinite check this
+    returns NaN instead of None, every "is None" guard downstream silently misses
+    it, and int(NaN) blows up mid-report. Anything this returns is safe to do
+    arithmetic, comparisons and int() on.
     """
     try:
-        return float(str(value).replace(',', '').strip())
-    except (TypeError, ValueError):
+        number = float(str(value).replace(',', '').strip())
+    except ValueError:
         return None
+    return number if math.isfinite(number) else None
+
+
+def format_kart_no(value):
+    """Render the Kart No cell the way the operator knows it: "12", not "12.0".
+
+    Same root cause as get_kart_class's: pandas types a numeric Kart No column
+    as float, so the raw cell arrives as 12.0 and printing it straight puts
+    "12.0" in the report. Ids that aren't whole numbers are passed through
+    untouched rather than guessed at, so nothing is silently renamed.
+    """
+    number = parse_number(value)
+    if number is None:
+        text = str(value).strip()
+        return text if text and text.lower() != "nan" else "-"
+    if number != int(number):
+        return str(value).strip()
+    return str(int(number))
 
 
 def format_run_time(hours):
@@ -235,15 +266,20 @@ def read_xls():
             "Kart No", "# Heats", "# Laps", "Average Lap Time", "Best Lap Time", "Total Hour"
         ]
         for _, row in df.iloc[1:].iterrows():
-            try:
-                kart_no = str(row['Kart No'])
-                avg_lap = float(str(row['Average Lap Time']).replace(',', ''))
-                best_lap = float(str(row['Best Lap Time']).replace(',', ''))
-            except (ValueError, KeyError):
+            # Lap times decide whether a row is usable at all -- a kart with no
+            # time can't be ranked, so it's dropped. They arrive as plain
+            # xx.xxx / xxx.xxx decimals, so parse_number is all that's needed;
+            # its NaN rejection is the point here, because a blank cell reaches
+            # this loop as NaN and float() would accept it, keeping an unrankable
+            # kart in the list where it silently scrambles the sort order.
+            avg_lap = parse_number(row.get('Average Lap Time'))
+            best_lap = parse_number(row.get('Best Lap Time'))
+            if avg_lap is None or best_lap is None:
                 continue
-            # Run time and lap count are parsed leniently, outside the try above:
-            # a kart with a blank or malformed 'Total Hour' should lose that one
-            # cell (rendered as "-"), not disappear from the report entirely.
+            kart_no = format_kart_no(row.get('Kart No'))
+            # Run time and lap count are parsed leniently: a kart with a blank or
+            # malformed 'Total Hour' should lose that one cell (rendered as "-"),
+            # not disappear from the report entirely.
             total_laps = parse_number(row.get('# Laps'))
             run_hours = parse_number(row.get('Total Hour'))
             kart_class = get_kart_class(kart_no)
