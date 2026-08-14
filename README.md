@@ -22,3 +22,14 @@
 
   ## Documentation
   [wiki.md](wiki.md) is the source of truth for how this repo works (code, file structure, build process, known issues). Whenever anything in this repo changes — code, files, structure, or workflow — update wiki.md in the same change so it stays current.
+
+  ## Contributing
+  **All work is done in a git worktree on its own branch, then merged onto `main`.** Don't work directly in the primary checkout. `main` is the trunk and gets pushed to directly — there's no PR gate.
+
+  ```
+  git worktree add ../lpc-<task-slug> -b claude/<task-slug>
+  # work + commit in the worktree, then merge onto main and push
+  git worktree remove ../lpc-<task-slug>
+  ```
+
+  See [wiki.md §0](wiki.md) for the full rationale and [workInstructions.md](workInstructions.md) for the rules on running several Claude Code sessions in parallel.

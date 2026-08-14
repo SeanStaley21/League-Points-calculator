@@ -1,9 +1,54 @@
 # League Points Calculator — Wiki
 
 Source of truth for what's in this repository, how it works, and what it's for.
-Last generated: 2026-07-09. Last updated: 2026-08-14 (§3/§3A — the kartTimeCinci
-input-selection and console-lifecycle improvements were backported into
-`kart_sorter.py`; its kart classification ranges were deliberately left unchanged).
+Last generated: 2026-07-09. Last updated: 2026-08-14 (§0 — worktree-per-task workflow
+made a repo-wide rule; §3/§3A — the kartTimeCinci input-selection and console-lifecycle
+improvements were backported into `kart_sorter.py`, with its kart classification ranges
+deliberately left unchanged).
+
+---
+
+## 0. How work gets done in this repo (worktree → merge to `main`)
+
+**All work happens in a git worktree on its own branch, then gets merged into `main`.**
+`main` is the trunk and the only long-lived branch — there is no PR/review gate and no
+`develop` branch. Work just isn't done *directly in the primary checkout*.
+
+```
+# from the repo root, start a task
+git worktree add ../lpc-<task-slug> -b claude/<task-slug>
+
+# ...do the work, commit small and often, in that worktree...
+
+# finish: merge back to main and publish
+git -C <repo root> checkout main
+git -C <repo root> merge claude/<task-slug>
+git -C <repo root> push origin main
+
+# clean up
+git worktree remove ../lpc-<task-slug>
+git branch -d claude/<task-slug>
+```
+
+Why, given that everything lands on `main` anyway:
+
+- The primary checkout stays clean and buildable. `flutter run`/`flutter build` and
+  PyInstaller both hold file locks and write large caches (`build/`, `.dart_tool/`);
+  a worktree keeps a half-finished task from wedging the tree you fall back to.
+- Abandoning or parking a task is `git worktree remove`, not unpicking a dirty tree.
+- Multiple Claude Code sessions can run at once without clobbering each other — see
+  `workInstructions.md` for the full parallel-session rules (file-ownership scoping,
+  single-owner lockfiles, merge/test/wiki-update order). Those rules were written for
+  `league_points_app/` but the worktree-per-task rule applies repo-wide.
+
+Keep `<task-slug>` short — Windows path limits bite fast with nested worktree paths.
+
+Two standing conventions that apply to every branch before it merges:
+
+- **`wiki.md` is updated in the same change**, never as a follow-up (see the README).
+- **Rebuild and commit the affected `.exe`** if you changed `kart_sorter.py` or
+  `kartTimeCinci.py` — the committed binary is what operators actually run, so a
+  source-only commit ships nothing (§6).
 
 ---
 

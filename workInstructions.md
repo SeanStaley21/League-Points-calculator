@@ -24,6 +24,12 @@ These are working rules for running several Claude Code sessions on
 `league_points_app/` at the same time without them clobbering each other's
 edits, build artifacts, or git history.
 
+> **Scope note.** The worktree-per-task rule in §1 is **not** specific to parallel
+> sessions or to this app — it is the repo-wide standard for all work, including
+> single-session work on `Kart time program/` and `kartTimeCinci/`. See wiki.md §0.
+> The rest of this document (file-ownership claiming, single-owner lockfiles,
+> merge ordering) is the extra coordination you only need when sessions overlap.
+
 ### 0. Prerequisite: commit the baseline first
 
 `league_points_app/` must be committed to `main` before any parallel-session
