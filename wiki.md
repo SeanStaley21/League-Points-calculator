@@ -8,7 +8,7 @@ deliberately left unchanged; §3.5/§3.6/§3A — `kart_sorter.py` alone gained 
 detection with a terminal fallback; §3.2/§3.4/§3A — the report gained `Run Time` and
 `Total Laps` columns in **both** builds; §3.3/§3A/§8 — both builds now delete their own
 report `.txt` files older than 24 hours on every run, and §3's subsections were
-renumbered to fit the new function in; §3.1/§3.2 — a two-agent logic review found three
+renumbered to fit the new function in; §3.3A — the report now prints the reporting period the export covers; §3.1/§3.2 — a two-agent logic review found three
 high-severity bugs shared by both builds, all fixed the same day: NaN cells crashing the
 write mid-report, NaN lap times silently scrambling the ranking, and `"12.0"` kart numbers
 classifying as `Other`).
@@ -128,10 +128,12 @@ As of the 2026-07-09 cleanup, the PyInstaller `build/` cache and the duplicate
 
 ## 3. `kart_sorter.py` — how it actually works
 
-The Full Throttle build of the kart sorter. Fourteen functions and a `main()`: four for
+The Full Throttle build of the kart sorter. Nineteen functions and a `main()`: four for
 the core sort-and-report job (`get_kart_class`, `read_xls`, `save_kart_tables`,
 `print_file`), four parsing/formatting helpers for the report columns (`parse_number`,
-`format_kart_no`, `format_run_time`, `format_total_laps`), one for housekeeping
+`format_kart_no`, `format_run_time`, `format_total_laps`), five for the reporting period
+(`export_text`, `parse_moment`, `extract_date_range`, `format_moment`,
+`format_date_range` — §3.3A), one for housekeeping
 (`cleanup_old_reports`), and five for printer detection and the terminal fallback
 (`get_default_printer`, `list_printers`, `is_virtual_printer`,
 `default_printer_status`, `show_in_terminal`). Everything but the first four was added
@@ -270,10 +272,47 @@ removed.
   write, and its mtime is seconds old regardless.
 - Age threshold lives in the `REPORT_MAX_AGE_HOURS` constant (`24`).
 
-### 3.4 `save_kart_tables(kart_data)`
+### 3.3A Reporting period: `extract_date_range()`, `format_moment()`, `format_date_range()` (added 2026-08-14)
+
+The export covers a span the operator picked in Clubspeed — e.g. `Wednesday, July 1,
+2026 4:00 AM to Saturday, August 1, 2026 3:59 AM`. Note the **4:00 AM boundary**: that's
+the track's day rollover, not midnight, because race nights run past 12. The printed
+report used to carry only the day it was generated, which says nothing about what the
+numbers cover. Now line 2 of the report is the period.
+
+- **Read from the raw file text, not via pandas.** The range lives *outside* the kart
+  table, and `read_xls` only ever looks at `tables[0]`. A text scan (tags stripped,
+  `&nbsp;` and `a.m.` normalised, whitespace collapsed) doesn't care whether the range
+  sits in a caption, a header table, a title line, or a footer.
+- **Two passes, most trustworthy first.** Pass 1 wants two timestamps joined by a range
+  separator (`-`, `–`, `to`, `through`). Pass 2 falls back to two *adjacent* timestamps,
+  where adjacency means within `MAX_RANGE_GAP` (40) characters of each other.
+- **The adjacency rail is the point, don't remove it.** Without it, a footer like
+  `Printed: 8/14/2026 6:12 PM` gets welded onto the real start date and the report prints
+  a confidently wrong period — on a document the league hands out. Better no line than a
+  lie. Tested both ways: a lone stray date and two distant unrelated dates both yield no
+  period at all.
+- **`format_moment` builds the string by hand** rather than using strftime's
+  no-leading-zero flag, which is `%-d` on Unix and `%#d` on Windows.
+- **Failure is always silent and safe.** Unreadable file, no dates, or a reversed range →
+  `(None, None)` → empty string → the report simply omits the line. A missing period must
+  never cost the operator their printout.
+- `read_xls()` now returns `(kart_data, date_range)` and `save_kart_tables()` takes
+  `date_range=""` as a second argument.
+
+> **Verified against 10 synthetic export layouts** (12h/24h/ISO timestamps, `a.m.` vs
+> `AM`, dash/en-dash/`to` separators, `From:`/`To:` header tables, range above and below
+> the data table, `&nbsp;` padding) — **but not yet against a real Clubspeed export**,
+> since none was available. If the real file expresses its range in some other shape, the
+> line is simply absent; nothing else changes.
+
+### 3.4 `save_kart_tables(kart_data, date_range="")`
 - Writes output to `~/Downloads/Kart_Results_<MM DD YYYY>.txt` (today's date, e.g.
   `Kart_Results_07 09 2026.txt`), deleting any existing file at that path first
   (same-day rerun overwrite; the older-than-24h sweep is §3.3's job).
+- Line 1 of the file is the generation date; line 2 is the reporting period from §3.3A,
+  **omitted entirely** when the export didn't carry one — so downstream readers must not
+  assume the tables start at a fixed line number.
 - For each class in the fixed order `Pro, Junior, Intermediate, Other`:
   - Filters karts belonging to that class.
   - Sorts them ascending by **best lap time** (index `2` of the tuple) — fastest

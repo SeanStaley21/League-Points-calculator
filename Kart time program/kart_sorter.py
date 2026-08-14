@@ -1,4 +1,5 @@
 import os
+import re
 import glob
 import math
 import ctypes
@@ -243,6 +244,122 @@ def format_total_laps(laps):
     return "-" if laps is None else f"{int(laps)}"
 
 
+# --- Reporting period ------------------------------------------------------
+# The export covers a date range the operator picked in Clubspeed (e.g. a whole
+# month, 4:00 AM to 3:59 AM -- the track's day boundary, not midnight). Nothing
+# in the kart table records it, so the printed report used to carry only the day
+# it was generated, which tells you nothing about what the numbers cover.
+#
+# The range is read out of the raw file text rather than via pandas, on purpose:
+# it lives outside the kart table (pandas only ever sees tables[0] here), and a
+# text scan doesn't care whether it sits in a caption, a header table, or a
+# stray line of markup. If nothing is found the report simply omits the line --
+# a missing period must never cost the operator their printout.
+
+RANGE_SEPARATOR = r"\s*(?:-{1,2}|–|—|to|through|thru)\s*"
+
+# How far apart two timestamps may sit and still be read as one range, once the
+# markup is stripped. Generous enough for "From: <a> To: <b>" in a header table,
+# tight enough to never pair the range with a footer date.
+MAX_RANGE_GAP = 40
+
+# Richest formats first: the first pattern that yields a usable pair wins, so a
+# full timestamp is never truncated to a bare date.
+DATE_PATTERNS = (
+    (r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}(?::\d{2})?\s*[AP]M",
+     ("%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y %I:%M %p")),
+    (r"\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}(?::\d{2})?",
+     ("%m/%d/%Y %H:%M:%S", "%m/%d/%Y %H:%M")),
+    (r"\d{4}-\d{2}-\d{2}[ T]\d{1,2}:\d{2}(?::\d{2})?",
+     ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M")),
+    (r"\d{1,2}/\d{1,2}/\d{4}", ("%m/%d/%Y",)),
+    (r"\d{4}-\d{2}-\d{2}", ("%Y-%m-%d",)),
+)
+
+
+def export_text(filepath):
+    """The export's visible text: markup stripped, entities and spacing tamed."""
+    with open(filepath, "rb") as f:
+        raw = f.read().decode("utf-8", errors="ignore")
+    text = re.sub(r"<[^>]+>", " ", raw)
+    text = text.replace("&nbsp;", " ").replace("\xa0", " ")
+    # "4:00:00 a.m." and "4:00:00 AM" are the same instant; normalise so one
+    # set of strptime formats covers both.
+    text = re.sub(r"\b([AaPp])\.\s*([Mm])\.", r"\1\2", text)
+    return re.sub(r"\s+", " ", text).upper()
+
+
+def parse_moment(text, formats):
+    """First format that parses `text`, or None."""
+    cleaned = " ".join(text.split())
+    for fmt in formats:
+        try:
+            return datetime.strptime(cleaned, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def extract_date_range(filepath):
+    """Return (start, end) datetimes covered by the export, or (None, None).
+
+    Two passes. First look for two timestamps joined by a range separator
+    ("-", "to", "through") -- that shape is unambiguous, and it steps around a
+    stray "Printed: <date>" being mistaken for one end of the period. Only if
+    that finds nothing does it fall back to the first two dates in the file.
+
+    Never raises: an unreadable or date-free export yields (None, None) and the
+    report goes out without the period line.
+    """
+    try:
+        text = export_text(filepath)
+    except OSError:
+        return None, None
+
+    for pattern, formats in DATE_PATTERNS:
+        pair = re.search(f"({pattern}){RANGE_SEPARATOR}({pattern})", text, re.IGNORECASE)
+        if pair:
+            start = parse_moment(pair.group(1), formats)
+            end = parse_moment(pair.group(2), formats)
+            if start and end and start <= end:
+                return start, end
+
+    for pattern, formats in DATE_PATTERNS:
+        hits = list(re.finditer(pattern, text, re.IGNORECASE))
+        for first, second in zip(hits, hits[1:]):
+            # Adjacency is the safety rail. Two dates sitting next to each other
+            # are a range; two dates at opposite ends of the file are a range end
+            # and something else entirely (a "printed on" stamp, a session date),
+            # and pairing those would print a confidently wrong period on a
+            # document the league actually hands out. Better no line than a lie.
+            if second.start() - first.end() > MAX_RANGE_GAP:
+                continue
+            start = parse_moment(first.group(), formats)
+            end = parse_moment(second.group(), formats)
+            if start and end and start <= end:
+                return start, end
+    return None, None
+
+
+def format_moment(moment):
+    """'Wednesday, July 1, 2026 4:00 AM'.
+
+    The day and hour are interpolated rather than left to strftime because the
+    no-leading-zero flag is spelled %-d on Unix and %#d on Windows; building the
+    string by hand sidesteps that entirely.
+    """
+    hour = moment.hour % 12 or 12
+    meridiem = "AM" if moment.hour < 12 else "PM"
+    return f"{moment:%A}, {moment:%B} {moment.day}, {moment.year} {hour}:{moment:%M} {meridiem}"
+
+
+def format_date_range(start, end):
+    """The period line for the report header, or "" if the range is unknown."""
+    if start is None or end is None:
+        return ""
+    return f"{format_moment(start)} to {format_moment(end)}"
+
+
 def read_xls():
     """Read the newest *.xls export from the user's Downloads folder.
 
@@ -250,15 +367,21 @@ def read_xls():
     modified *.xls in Downloads, so the operator can just download the Clubspeed
     export and run without renaming it. The export is an HTML table saved with an
     .xls extension, parsed via pandas.read_html.
+
+    Returns (kart_data, date_range) -- the second being the formatted reporting
+    period for the report header, or "" when the export doesn't carry one.
     """
     downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
     xls_files = glob.glob(os.path.join(downloads_folder, "*.xls"))
     kart_data = []
     if not xls_files:
         print(f"No .xls export found in Downloads: {downloads_folder}")
-        return kart_data
+        return kart_data, ""
     filepath = max(xls_files, key=os.path.getmtime)
     print(f"Reading newest .xls export: {os.path.basename(filepath)}")
+    date_range = format_date_range(*extract_date_range(filepath))
+    if date_range:
+        print(f"Reporting period: {date_range}")
     try:
         tables = pd.read_html(filepath, header=None)
         df = tables[0]
@@ -290,7 +413,7 @@ def read_xls():
             )
     except Exception as e:
         print(f"Error reading HTML table: {e}")
-    return kart_data
+    return kart_data, date_range
 
 REPORT_PREFIX = "Kart_Results_"
 REPORT_MAX_AGE_HOURS = 24
@@ -325,7 +448,7 @@ def cleanup_old_reports():
             print(f"Could not remove {os.path.basename(filepath)}: {e}")
     return deleted
 
-def save_kart_tables(kart_data):
+def save_kart_tables(kart_data, date_range=""):
     # Get the user's Downloads folder
     script_dir = os.path.join(os.path.expanduser("~"), "Downloads")
     current_date = datetime.now().strftime("%m %d %Y")
@@ -340,6 +463,10 @@ def save_kart_tables(kart_data):
     
     with open(output_filepath, 'w') as f:
         f.write(f"{current_date}\n")
+        # The period the numbers cover, when the export told us. Distinct from
+        # the line above, which is only the day the report was generated.
+        if date_range:
+            f.write(f"{date_range}\n")
         for kart_class in classes:
             class_karts = [k for k in kart_data if k[3] == kart_class]
             if class_karts:
@@ -400,7 +527,7 @@ def main():
         # First, so stale reports get cleared even on runs that bail out below.
         cleanup_old_reports()
 
-        kart_data = read_xls()
+        kart_data, date_range = read_xls()
         if not kart_data:
             # No .xls found, unreadable, or wrong format -- nothing was printed,
             # so this is NOT a "could not print" case.
@@ -409,7 +536,7 @@ def main():
             input("\nPress Enter to exit...")
             return
 
-        output_file = save_kart_tables(kart_data)
+        output_file = save_kart_tables(kart_data, date_range)
 
         # Nothing to print to (no printer, a print-to-PDF style one, or an
         # offline one) -- show the results here rather than firing a print that
