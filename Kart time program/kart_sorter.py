@@ -1,7 +1,163 @@
 import os
 import glob
+import ctypes
+from ctypes import wintypes
 import pandas as pd
 from datetime import datetime
+
+# --- Windows printer inspection -------------------------------------------
+# Used to decide, before printing, whether the default printer can actually put
+# ink on paper. If it can't (no printer, a print-to-PDF/XPS style virtual
+# printer, or an offline one), main() shows the report in the terminal instead
+# of firing os.startfile and closing the window on a print that never happens.
+#
+# This talks to winspool.drv through ctypes rather than pywin32 on purpose:
+# ctypes is stdlib, so it adds no dependency, no PyInstaller hidden imports, and
+# no size to the shipped .exe.
+
+PRINTER_ATTRIBUTE_WORK_OFFLINE = 0x400
+PRINTER_STATUS_PAUSED = 0x001
+PRINTER_STATUS_ERROR = 0x002
+PRINTER_STATUS_OFFLINE = 0x080
+PRINTER_STATUS_NOT_AVAILABLE = 0x1000
+PRINTER_STATUS_UNUSABLE = (
+    PRINTER_STATUS_PAUSED
+    | PRINTER_STATUS_ERROR
+    | PRINTER_STATUS_OFFLINE
+    | PRINTER_STATUS_NOT_AVAILABLE
+)
+
+PRINTER_ENUM_LOCAL = 0x02
+PRINTER_ENUM_CONNECTIONS = 0x04
+
+# Ports that mean "this printer writes a file, it does not produce paper."
+VIRTUAL_PRINTER_PORTS = {"portprompt:", "nul:", "nul", "file:", "xpsport:", "shrfax:"}
+
+# Name fallback, for third-party virtual printers sitting on ordinary-looking
+# ports (CutePDF, Foxit, PDF24, Bullzip, Adobe PDF...).
+VIRTUAL_PRINTER_NAME_HINTS = (
+    "pdf", "xps", "onenote", "fax", "print to file", "document writer",
+)
+
+
+class PRINTER_INFO_2(ctypes.Structure):
+    """Win32 PRINTER_INFO_2. Only pPrinterName/pPortName/Attributes/Status are
+    read, but every field has to be declared, in order, or the offsets shift and
+    the interesting ones come back as garbage.
+    """
+    _fields_ = [
+        ("pServerName", wintypes.LPWSTR),
+        ("pPrinterName", wintypes.LPWSTR),
+        ("pShareName", wintypes.LPWSTR),
+        ("pPortName", wintypes.LPWSTR),
+        ("pDriverName", wintypes.LPWSTR),
+        ("pComment", wintypes.LPWSTR),
+        ("pLocation", wintypes.LPWSTR),
+        ("pDevMode", ctypes.c_void_p),
+        ("pSepFile", wintypes.LPWSTR),
+        ("pPrintProcessor", wintypes.LPWSTR),
+        ("pDatatype", wintypes.LPWSTR),
+        ("pParameters", wintypes.LPWSTR),
+        ("pSecurityDescriptor", ctypes.c_void_p),
+        ("Attributes", wintypes.DWORD),
+        ("Priority", wintypes.DWORD),
+        ("DefaultPriority", wintypes.DWORD),
+        ("StartTime", wintypes.DWORD),
+        ("UntilTime", wintypes.DWORD),
+        ("Status", wintypes.DWORD),
+        ("cJobs", wintypes.DWORD),
+        ("AveragePPM", wintypes.DWORD),
+    ]
+
+
+def get_default_printer():
+    """Return the default printer's name, or None if there isn't one."""
+    winspool = ctypes.WinDLL("winspool.drv")
+    size = wintypes.DWORD(512)
+    buf = ctypes.create_unicode_buffer(size.value)
+    if not winspool.GetDefaultPrinterW(buf, ctypes.byref(size)):
+        return None
+    return buf.value or None
+
+
+def list_printers():
+    """Return [(name, port, attributes, status)] for every installed printer.
+
+    EnumPrintersW is called twice, as the API requires: once with a null buffer
+    to learn the size, then again to actually fill it.
+    """
+    winspool = ctypes.WinDLL("winspool.drv")
+    flags = PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS
+    needed = wintypes.DWORD()
+    returned = wintypes.DWORD()
+
+    winspool.EnumPrintersW(
+        flags, None, 2, None, 0, ctypes.byref(needed), ctypes.byref(returned)
+    )
+    if not needed.value:
+        return []
+
+    buf = ctypes.create_string_buffer(needed.value)
+    if not winspool.EnumPrintersW(
+        flags, None, 2, buf, needed.value, ctypes.byref(needed), ctypes.byref(returned)
+    ):
+        return []
+
+    printers = ctypes.cast(buf, ctypes.POINTER(PRINTER_INFO_2))
+    return [
+        (
+            printers[i].pPrinterName,
+            printers[i].pPortName,
+            printers[i].Attributes,
+            printers[i].Status,
+        )
+        for i in range(returned.value)
+    ]
+
+
+def is_virtual_printer(name, port):
+    """True if this printer saves to a file rather than printing on paper."""
+    if (port or "").strip().lower() in VIRTUAL_PRINTER_PORTS:
+        return True
+    lowered = (name or "").lower()
+    return any(hint in lowered for hint in VIRTUAL_PRINTER_NAME_HINTS)
+
+
+def default_printer_status():
+    """Decide whether printing is worth attempting.
+
+    Returns (can_print, reason). 'reason' is an operator-facing sentence when
+    can_print is False, and empty otherwise.
+
+    Fails open: any unexpected error inspecting the print system returns
+    (True, "") so the tool behaves exactly as it did before this check existed.
+    Refusing to print because detection broke would be worse than the problem
+    this solves -- and if the print then fails to dispatch, main() still falls
+    back to the terminal anyway.
+    """
+    try:
+        name = get_default_printer()
+        if not name:
+            return False, "No default printer is set up on this computer."
+
+        for printer_name, port, attributes, status in list_printers():
+            if printer_name != name:
+                continue
+            if is_virtual_printer(printer_name, port):
+                return False, (
+                    f'The default printer ("{name}") saves to a file '
+                    "instead of printing on paper."
+                )
+            if attributes & PRINTER_ATTRIBUTE_WORK_OFFLINE or status & PRINTER_STATUS_UNUSABLE:
+                return False, f'The default printer ("{name}") is offline or unavailable.'
+            return True, ""
+
+        # Default printer isn't in the enumeration -- unusual, but not a reason
+        # to second-guess it. Let the print attempt happen.
+        return True, ""
+    except Exception:
+        return True, ""
+
 
 def get_kart_class(kart_no):
     """Classify a kart number into a Full Throttle-fleet division by numeric range.
@@ -114,6 +270,17 @@ def print_file(filepath):
         print(f"Error printing file: {e}")
         return False
 
+def show_in_terminal(filepath):
+    """Echo the saved report to the console, for when printing isn't possible.
+
+    Reads the file back rather than re-formatting the tables. The fixed-width
+    layout is built inline in save_kart_tables(), so re-rendering it here would
+    mean a second copy of that loop that could drift; reading the file back is
+    byte-for-byte what was saved.
+    """
+    with open(filepath) as f:
+        print(f.read())
+
 def main():
     try:
         kart_data = read_xls()
@@ -126,11 +293,27 @@ def main():
             return
 
         output_file = save_kart_tables(kart_data)
+
+        # Nothing to print to (no printer, a print-to-PDF style one, or an
+        # offline one) -- show the results here rather than firing a print that
+        # produces a Save As dialog, or nothing at all, and closing the window.
+        can_print, reason = default_printer_status()
+        if not can_print:
+            print(f"\n{reason}")
+            print("Showing the results here instead.\n")
+            show_in_terminal(output_file)
+            print(f"Saved to: {output_file}")
+            input("\nPress Enter to exit...")
+            return
+
         if print_file(output_file):
             # Successful dispatch -- close immediately, no prompt.
             return
-        # Print could not be dispatched -- keep the window open with the error.
-        print("Could not print")
+
+        # Dispatch failed -- show the results rather than dead-ending on an error.
+        print("Could not print -- showing the results here instead.\n")
+        show_in_terminal(output_file)
+        print(f"Saved to: {output_file}")
         input("\nPress Enter to exit...")
     except Exception as e:
         # Catch-all so an unexpected error (e.g. a file-write failure) never

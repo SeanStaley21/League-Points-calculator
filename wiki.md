@@ -4,7 +4,8 @@ Source of truth for what's in this repository, how it works, and what it's for.
 Last generated: 2026-07-09. Last updated: 2026-08-14 (§0 — worktree-per-task workflow
 made a repo-wide rule; §3/§3A — the kartTimeCinci input-selection and console-lifecycle
 improvements were backported into `kart_sorter.py`, with its kart classification ranges
-deliberately left unchanged).
+deliberately left unchanged; §3.4/§3.5/§3A — `kart_sorter.py` alone gained printer
+detection with a terminal fallback).
 
 ---
 
@@ -98,7 +99,7 @@ League-Points-calculator/
 │   └── dist/                          PyInstaller output — what end users actually run
 │       └── kart_sorter.exe            The compiled, distributable program (~33 MB)
 ├── kartTimeCinci/                     Cincinnati-fleet variant of the kart sorter — see §3A
-│   ├── kartTimeCinci.py              Source (adapted from kart_sorter.py; differs only in fleet ranges + output filename)
+│   ├── kartTimeCinci.py              Source (adapted from kart_sorter.py; differs in fleet ranges, output filename, and no printer detection — §3A)
 │   ├── kartTimeCinci.spec            PyInstaller spec (generated as a build byproduct)
 │   ├── build/                        PyInstaller intermediate cache — gitignored, regenerated locally
 │   └── dist/
@@ -174,7 +175,56 @@ manually/elsewhere.
     to the text file.
 - Returns the output filepath.
 
-### 3.4 `print_file(filepath)`
+### 3.4 Printing: `default_printer_status()`, `print_file()`, `show_in_terminal()`
+
+**Added 2026-08-14 — Full Throttle build only.** `os.startfile(..., "print")` can't tell
+you whether anything will actually come out of a printer, so the tool used to "succeed"
+and close the window while the operator got a PDF Save-As dialog, or nothing at all.
+`default_printer_status()` answers that question *before* printing; when the answer is no,
+`main()` shows the report in the console instead (§3.5). This is **not** in
+`kartTimeCinci.py` — see §3A.
+
+#### `default_printer_status()` → `(can_print, reason)`
+Talks to `winspool.drv` through **`ctypes`, not pywin32** — deliberately, since `ctypes`
+is stdlib and so adds no dependency, no PyInstaller hidden imports, and essentially no
+size to the `.exe` (the rebuild grew ~4 KB). Two Win32 calls:
+
+- `GetDefaultPrinterW` → the default printer's name.
+- `EnumPrintersW` (level 2, `LOCAL | CONNECTIONS`) → name, port, attributes and status
+  for every installed printer. Called twice, as the API requires: once with a null
+  buffer to learn the size, then again to fill it. This needs the full `PRINTER_INFO_2`
+  struct declared — **all 21 fields, in order**, even though only four are read, or the
+  offsets shift and the values come back as garbage.
+
+The decision, in order:
+
+| # | Condition | Result |
+|---|-----------|--------|
+| 1 | No default printer at all | `False` — "No default printer is set up on this computer." |
+| 2 | Port is a virtual one (`PORTPROMPT:`, `nul:`, `FILE:`, `XPSPort:`, `SHRFAX:`), **or** the name contains `pdf`/`xps`/`onenote`/`fax`/`print to file`/`document writer` | `False` — "…saves to a file instead of printing on paper." |
+| 3 | `PRINTER_ATTRIBUTE_WORK_OFFLINE`, or status has OFFLINE / NOT_AVAILABLE / ERROR / PAUSED | `False` — "…is offline or unavailable." |
+| 4 | Default printer isn't in the enumeration | `True` — don't second-guess it, let the print attempt happen |
+| 5 | Otherwise | `True` |
+
+Port is the primary signal and the name check is the fallback, which is what catches
+third-party virtual printers (CutePDF, Foxit, PDF24, Bullzip) sitting on ordinary-looking
+ports. The name check is the one that can misfire — a real printer with "PDF" in its
+model name would be treated as virtual. That was accepted knowingly: the cost is that the
+operator reads the results on screen and can still print the `.txt` by hand.
+
+**It fails open.** The whole body is wrapped in `try/except Exception` returning
+`(True, "")`. If printer detection breaks on some unexpected Windows configuration, the
+tool must behave exactly as it did before this check existed — refusing to print because
+*detection* failed would be worse than the problem it solves. Nothing is lost, because a
+print that then fails to dispatch still falls back to the terminal.
+
+#### `show_in_terminal(filepath)`
+Reads the saved `.txt` back and `print()`s it. It deliberately does **not** re-render the
+tables: the fixed-width layout is built inline inside `save_kart_tables()` with no
+reusable formatter, so re-rendering would mean a second copy of that loop free to drift.
+Reading the file back is byte-for-byte what was saved.
+
+#### `print_file(filepath)`
 - Calls `os.startfile(filepath, "print")` — a Windows-only API that hands the file
   to whatever application is associated with `.txt` and tells it to print using the
   **default printer**, with no print-preview or confirmation step.
@@ -185,7 +235,8 @@ manually/elsewhere.
   only raises `OSError` when no print verb is registered for `.txt`. A **missing,
   offline, or paused default printer does not raise** — the handler launches fine and
   fails later in its own UI. This is the strongest signal Windows exposes without a
-  heavier print API.
+  heavier print API — which is precisely why the `default_printer_status()` pre-check
+  above exists. The caveat still stands for everything that gets past that check.
 
 ### 3.5 `main()`
 The whole body is wrapped in a `try/except Exception`, so an unexpected error (e.g. a
@@ -196,13 +247,20 @@ double-clicked `.exe` shut before it can be read.
 2. **No data** → print `"No kart data found."` plus a hint to check that the `.xls`
    export is in Downloads, then wait for Enter. This path deliberately does **not**
    say "could not print" — nothing was ever sent to a printer.
-3. **Data found** → `save_kart_tables()`, then `print_file()`.
-   - **Dispatch succeeded** → return immediately; the console **closes on its own**,
-     with no "Press Enter" prompt. This is the normal, everyday path.
-   - **Dispatch failed** → print `"Could not print"` and wait for Enter.
+3. **Data found** → `save_kart_tables()` (the `.txt` is written in every case below),
+   then `default_printer_status()`:
+   - **No usable printer** → print the reason, then `show_in_terminal()` the report,
+     then the saved path, then wait for Enter. Nothing is dispatched to a printer.
+   - **Printer looks usable** → `print_file()`:
+     - **Dispatch succeeded** → return immediately; the console **closes on its own**,
+       with no "Press Enter" prompt. This is the normal, everyday path.
+     - **Dispatch failed** → `"Could not print -- showing the results here instead."`,
+       then `show_in_terminal()` and wait for Enter. (Before 2026-08-14 this branch
+       just said "Could not print" and left the operator with nothing on screen.)
 
-The net effect: a clean run is silent and self-closing, and the window only ever
-sticks around when there is something the operator needs to read.
+The rule this settles on: **the window auto-closes only when paper is actually coming
+out.** Every path that puts results on screen holds the window, because the whole point
+of those paths is that the operator reads them there.
 
 ### 3.6 Trailing comments in the file (build notes, not code)
 The bottom of `kart_sorter.py` contains developer notes, not functional code:
@@ -222,7 +280,8 @@ adaptation of `kart_sorter.py` (§3) — same functions (`get_kart_class`, `read
 `save_kart_tables`, `print_file`, `main`), same Clubspeed HTML-table `.xls` input
 format, same fixed-width `.txt` report, same print-to-default-printer flow. It is a
 sibling of `Kart time program/`, not a replacement — both are shipped and both are
-used, at their respective locations.
+used, at their respective locations. (As of 2026-08-14 the Full Throttle build has three
+functions Cincinnati doesn't — see difference 3 below.)
 
 The division ranges come from `Kart time program/cincinatti fleet divisions.txt` and
 are **baked into the code** (hardcoded, like the original — no external config file to
@@ -232,7 +291,9 @@ lose as a single `.exe`).
 `kart_sorter.py`. Two of them — newest-`.xls` input selection and the console
 lifecycle — were general improvements that had nothing to do with Cincinnati, so they
 were **backported into `kart_sorter.py`** (§3.2, §3.4, §3.5) and are now **shared
-behavior**, not differences. What remains is genuinely fleet-specific:
+behavior**, not differences. Later the same day, printer detection was added to the Full
+Throttle build only, creating a new difference in the other direction (item 3). The
+current list:
 
 1. **Classification ranges (`get_kart_class`)** — the Cincinnati fleet:
 
@@ -254,14 +315,29 @@ behavior**, not differences. What remains is genuinely fleet-specific:
    tools on the same day doesn't clobber one report. This is why the backport left the
    original's filename alone.
 
-**Now identical in both builds** (documented in §3, don't re-document as differences):
-newest-`.xls` input selection, `print_file` returning dispatch success/failure with
-the dispatched-≠-printed caveat, close-on-successful-print, the distinct no-data and
-"Could not print" messages, and the `try/except` wrapper around `main()`.
+3. **No printer detection / terminal fallback** (diverged 2026-08-14) — the Full Throttle
+   build gained `default_printer_status()`, `show_in_terminal()`, and the `main()`
+   branches that display the report in the console when there's no usable printer (§3.4,
+   §3.5). `kartTimeCinci.py` does **not** have any of it: it still calls `print_file()`
+   unconditionally and dead-ends on `"Could not print"`.
 
-**If you change one of the shared behaviors, change it in both files.** They are
-independent copies, not a shared module — that is intentional (each ships as a
-self-contained single-file `.exe`), but it means the two can silently drift.
+   This one is an **intentional divergence, not drift** — the change was explicitly
+   scoped to the Full Throttle program at the user's request. It is *not* fleet-specific,
+   though, so unlike differences 1 and 2 it is a reasonable candidate to port later.
+   Doing so is a mechanical copy: the `ctypes`/`winspool` block and `PRINTER_INFO_2`
+   struct, the four functions `get_default_printer` / `list_printers` /
+   `is_virtual_printer` / `default_printer_status`, `show_in_terminal`, and the two new
+   branches in `main()`. Nothing in it depends on the fleet or the output filename.
+
+**Still identical in both builds** (documented in §3, don't re-document as differences):
+newest-`.xls` input selection, `print_file` itself returning dispatch success/failure
+with the dispatched-≠-printed caveat, close-on-successful-print, the no-data message,
+and the `try/except` wrapper around `main()`.
+
+**If you change one of those shared behaviors, change it in both files** — unless you are
+deliberately diverging, in which case record it here as a numbered difference the way
+item 3 does. They are independent copies, not a shared module; that is intentional (each
+ships as a self-contained single-file `.exe`), but it means the two can silently drift.
 
 **Build:** from inside `kartTimeCinci/`, `python -m PyInstaller --onefile
 kartTimeCinci.py` (Python 3.13). This produces `dist/kartTimeCinci.exe` (~33 MB) and
@@ -371,11 +447,13 @@ Nothing else in the repo was found to be duplicated or dead: `kart_sorter.py`,
 3. Double-clicks `Kart time program/dist/kart_sorter.exe`.
 4. Program reads the newest `~/Downloads/*.xls`, classifies each kart as Pro / Junior /
    Intermediate / Other by kart number, ranks each class by best lap time.
-5. Writes `~/Downloads/Kart_Results_<date>.txt` and immediately sends it to the
-   default printer.
-6. On a successful print the console **closes by itself**. It only stays open — showing
-   "No kart data found.", "Could not print", or an error — when something needs
-   reading.
+5. Writes `~/Downloads/Kart_Results_<date>.txt`, then checks whether the default printer
+   can actually produce paper (§3.4).
+   - **Yes** → sends it to the default printer.
+   - **No printer / print-to-PDF / offline** → prints the report into the console window
+     instead, so the operator can read it off the screen. The `.txt` is saved either way.
+6. On a successful print the console **closes by itself**. It stays open whenever there's
+   something to read — the on-screen results, "No kart data found.", or an error.
 7. Separately (no code link), the operator manually transcribes/keys weekly
    results and standings into `league template.xlsx` to track season-long league
    points across `Division 1/2/3` and `Juniors`.
