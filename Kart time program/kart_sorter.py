@@ -254,6 +254,39 @@ def read_xls():
         print(f"Error reading HTML table: {e}")
     return kart_data
 
+REPORT_PREFIX = "Kart_Results_"
+REPORT_MAX_AGE_HOURS = 24
+
+def cleanup_old_reports():
+    """Delete this tool's own report files in Downloads older than 24 hours.
+
+    Every run writes a new Kart_Results_<date>.txt, and nothing ever removed the
+    previous days' files, so Downloads grew by one report per run-day forever.
+
+    The glob is deliberately anchored to REPORT_PREFIX rather than "*.txt": this
+    runs against the operator's real Downloads folder, which is full of personal
+    files, so it must never match anything this program didn't write. Age comes
+    from the file's mtime, not from the date in its name -- that's what "made in
+    the last 24 hours" actually means, and it doesn't break if the filename
+    format ever changes.
+
+    Returns the number of files deleted.
+    """
+    downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+    cutoff = datetime.now().timestamp() - REPORT_MAX_AGE_HOURS * 3600
+    deleted = 0
+    for filepath in glob.glob(os.path.join(downloads_folder, f"{REPORT_PREFIX}*.txt")):
+        try:
+            if os.path.getmtime(filepath) < cutoff:
+                os.remove(filepath)
+                deleted += 1
+                print(f"Removed old report: {os.path.basename(filepath)}")
+        except OSError as e:
+            # Most likely the file is open in Notepad (PermissionError). Skip it
+            # -- a failed cleanup must never stop the operator getting a printout.
+            print(f"Could not remove {os.path.basename(filepath)}: {e}")
+    return deleted
+
 def save_kart_tables(kart_data):
     # Get the user's Downloads folder
     script_dir = os.path.join(os.path.expanduser("~"), "Downloads")
@@ -326,6 +359,9 @@ def show_in_terminal(filepath):
 
 def main():
     try:
+        # First, so stale reports get cleared even on runs that bail out below.
+        cleanup_old_reports()
+
         kart_data = read_xls()
         if not kart_data:
             # No .xls found, unreadable, or wrong format -- nothing was printed,

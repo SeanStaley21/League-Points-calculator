@@ -4,9 +4,11 @@ Source of truth for what's in this repository, how it works, and what it's for.
 Last generated: 2026-07-09. Last updated: 2026-08-14 (§0 — worktree-per-task workflow
 made a repo-wide rule; §3/§3A — the kartTimeCinci input-selection and console-lifecycle
 improvements were backported into `kart_sorter.py`, with its kart classification ranges
-deliberately left unchanged; §3.4/§3.5/§3A — `kart_sorter.py` alone gained printer
-detection with a terminal fallback; §3.2/§3.3/§3A — the report gained `Run Time` and
-`Total Laps` columns in **both** builds).
+deliberately left unchanged; §3.5/§3.6/§3A — `kart_sorter.py` alone gained printer
+detection with a terminal fallback; §3.2/§3.4/§3A — the report gained `Run Time` and
+`Total Laps` columns in **both** builds; §3.3/§3A/§8 — both builds now delete their own
+report `.txt` files older than 24 hours on every run, and §3's subsections were
+renumbered to fit the new function in).
 
 ---
 
@@ -52,10 +54,10 @@ Two standing conventions that apply to every branch before it merges:
   `kartTimeCinci.py` — the committed binary is what operators actually run, so a
   source-only commit ships nothing (§6).
 
-> ⚠️ **Both `.exe`s are currently behind their source.** The `Run Time` / `Total Laps`
-> columns (2026-08-14, §3.3) were committed source-only at the user's request. Until
-> `dist/kart_sorter.exe` and `dist/kartTimeCinci.exe` are rebuilt with PyInstaller (§6),
-> operators still get the old four-column report.
+> **Both `.exe`s are back in sync with their source as of 2026-08-14.** The `Run Time` /
+> `Total Laps` columns had been committed source-only, leaving the binaries behind; the
+> report-cleanup change (§3.3) rebuilt both with PyInstaller (§6), so that release went
+> out with it. Operators now get the six-column report *and* the 24-hour cleanup.
 
 ---
 
@@ -123,12 +125,22 @@ As of the 2026-07-09 cleanup, the PyInstaller `build/` cache and the duplicate
 
 ## 3. `kart_sorter.py` — how it actually works
 
-The Full Throttle build of the kart sorter. It has four functions and a `main()`.
+The Full Throttle build of the kart sorter. Thirteen functions and a `main()`: four for
+the core sort-and-report job (`get_kart_class`, `read_xls`, `save_kart_tables`,
+`print_file`), three formatting helpers for the report columns (`parse_number`,
+`format_run_time`, `format_total_laps`), one for housekeeping
+(`cleanup_old_reports`), and five for printer detection and the terminal fallback
+(`get_default_printer`, `list_printers`, `is_virtual_printer`,
+`default_printer_status`, `show_in_terminal`). Everything but the first four was added
+on 2026-08-14.
 
 > **Changed 2026-08-14.** The input-selection and console-lifecycle improvements first
 > written for the Cincinnati build (§3A) were backported here. `get_kart_class` and the
 > output filename were **deliberately left alone** — the Full Throttle kart list is
-> unchanged. See §3.2, §3.4, §3.5.
+> unchanged. See §3.2, §3.5, §3.6.
+>
+> **Also 2026-08-14:** `cleanup_old_reports()` (§3.3) was added, so old report files
+> no longer pile up in Downloads. Subsections below §3.2 were renumbered to fit it in.
 
 ### 3.1 `get_kart_class(kart_no)`
 Classifies a kart number into a league division purely by numeric range:
@@ -175,13 +187,41 @@ manually/elsewhere.
   kart one cell (rendered `-` by `format_run_time` / `format_total_laps`), not its row.
 - The two new fields are appended at **indices 4 and 5**, at the end of the tuple, on
   purpose — downstream code indexes this tuple positionally (`x[2]` is the sort key,
-  `k[3]` the class filter, see §3.3), so inserting anywhere else would break it.
+  `k[3]` the class filter, see §3.4), so inserting anywhere else would break it.
 - If an error occurs while parsing, it prints the error and returns whatever it
   collected (possibly an empty list).
 
-### 3.3 `save_kart_tables(kart_data)`
+### 3.3 `cleanup_old_reports()` (added 2026-08-14)
+Housekeeping run at the **start** of every `main()`. Deletes this tool's own report
+files in Downloads whose mtime is more than 24 hours old, and returns how many it
+removed.
+
+- Before this existed, the only deletion anywhere was the same-path overwrite in
+  `save_kart_tables` (§3.4), which clears **today's** file only. Every previous day's
+  report stayed forever, so Downloads grew by one report per run-day, per tool,
+  unbounded. That's what this fixes.
+- **The glob is anchored to the `REPORT_PREFIX` module constant (`Kart_Results_`), not
+  `*.txt` — this is a safety property, not a detail.** It runs against the operator's
+  *real* Downloads folder, full of personal files, so it must never match anything the
+  program didn't write. Do not "simplify" this to a bare `*.txt` sweep. The `.docx`
+  case is excluded too: the pattern is `Kart_Results_*.txt`.
+- Age comes from `os.path.getmtime`, **not** from the date parsed out of the filename
+  — mtime is what "made in the last 24 hours" actually means, and it survives any
+  future change to the filename format.
+- Each delete is wrapped in its own `try/except OSError`, so a report the operator
+  still has open in Notepad (`PermissionError`/`WinError 32` on Windows) is reported
+  and skipped without aborting the loop or the run. **A failed cleanup must never stop
+  the operator getting their printout** — that's why nothing here is fatal.
+- Called first in `main()` (§3.6) *deliberately*: cleanup then still happens on runs
+  that bail out early with no `.xls` found, which is exactly when Downloads tends to be
+  cluttered. The freshly written report is never at risk — cleanup runs before the
+  write, and its mtime is seconds old regardless.
+- Age threshold lives in the `REPORT_MAX_AGE_HOURS` constant (`24`).
+
+### 3.4 `save_kart_tables(kart_data)`
 - Writes output to `~/Downloads/Kart_Results_<MM DD YYYY>.txt` (today's date, e.g.
-  `Kart_Results_07 09 2026.txt`), deleting any existing file at that path first.
+  `Kart_Results_07 09 2026.txt`), deleting any existing file at that path first
+  (same-day rerun overwrite; the older-than-24h sweep is §3.3's job).
 - For each class in the fixed order `Pro, Junior, Intermediate, Other`:
   - Filters karts belonging to that class.
   - Sorts them ascending by **best lap time** (index `2` of the tuple) — fastest
@@ -207,13 +247,13 @@ The export gives run time as **decimal hours**; it is converted to hours + minut
 the printout because that's what the operator reads off paper. `format_run_time` rounds
 minutes and carries `60` up to the next hour, so `8.999` prints `9h 00m`, never `8h 60m`.
 
-### 3.4 Printing: `default_printer_status()`, `print_file()`, `show_in_terminal()`
+### 3.5 Printing: `default_printer_status()`, `print_file()`, `show_in_terminal()`
 
 **Added 2026-08-14 — Full Throttle build only.** `os.startfile(..., "print")` can't tell
 you whether anything will actually come out of a printer, so the tool used to "succeed"
 and close the window while the operator got a PDF Save-As dialog, or nothing at all.
 `default_printer_status()` answers that question *before* printing; when the answer is no,
-`main()` shows the report in the console instead (§3.5). This is **not** in
+`main()` shows the report in the console instead (§3.6). This is **not** in
 `kartTimeCinci.py` — see §3A.
 
 #### `default_printer_status()` → `(can_print, reason)`
@@ -270,16 +310,18 @@ Reading the file back is byte-for-byte what was saved.
   heavier print API — which is precisely why the `default_printer_status()` pre-check
   above exists. The caveat still stands for everything that gets past that check.
 
-### 3.5 `main()`
+### 3.6 `main()`
 The whole body is wrapped in a `try/except Exception`, so an unexpected error (e.g. a
 file-write failure) prints its message and holds the window rather than slamming a
 double-clicked `.exe` shut before it can be read.
 
-1. `read_xls()` → get parsed kart data.
-2. **No data** → print `"No kart data found."` plus a hint to check that the `.xls`
+1. `cleanup_old_reports()` → clear reports older than 24 h (§3.3). First, so it runs
+   even on the no-data path below.
+2. `read_xls()` → get parsed kart data.
+3. **No data** → print `"No kart data found."` plus a hint to check that the `.xls`
    export is in Downloads, then wait for Enter. This path deliberately does **not**
    say "could not print" — nothing was ever sent to a printer.
-3. **Data found** → `save_kart_tables()` (the `.txt` is written in every case below),
+4. **Data found** → `save_kart_tables()` (the `.txt` is written in every case below),
    then `default_printer_status()`:
    - **No usable printer** → print the reason, then `show_in_terminal()` the report,
      then the saved path, then wait for Enter. Nothing is dispatched to a printer.
@@ -294,7 +336,7 @@ The rule this settles on: **the window auto-closes only when paper is actually c
 out.** Every path that puts results on screen holds the window, because the whole point
 of those paths is that the operator reads them there.
 
-### 3.6 Trailing comments in the file (build notes, not code)
+### 3.7 Trailing comments in the file (build notes, not code)
 The bottom of `kart_sorter.py` contains developer notes, not functional code:
 ```
 File path: C:\Users\Asalt\OneDrive - Full Throttle Adrenaline Park\excel stuff\leagues\League-Points-calculator\Kart time program
@@ -309,7 +351,8 @@ This tells you exactly how `dist/kart_sorter.exe` is (re)built: `pyinstaller --o
 `kartTimeCinci/kartTimeCinci.py` is a standalone second build of the kart sorter for
 a **different location running a different kart fleet** (Cincinnati). It is a close
 adaptation of `kart_sorter.py` (§3) — same functions (`get_kart_class`, `read_xls`,
-`save_kart_tables`, `print_file`, `main`), same Clubspeed HTML-table `.xls` input
+`cleanup_old_reports`, `save_kart_tables`, `print_file`, `main`), same Clubspeed
+HTML-table `.xls` input
 format, same fixed-width `.txt` report, same print-to-default-printer flow. It is a
 sibling of `Kart time program/`, not a replacement — both are shipped and both are
 used, at their respective locations. (As of 2026-08-14 the Full Throttle build has three
@@ -322,10 +365,11 @@ lose as a single `.exe`).
 **Changed 2026-08-14.** This section used to list *four* differences from
 `kart_sorter.py`. Two of them — newest-`.xls` input selection and the console
 lifecycle — were general improvements that had nothing to do with Cincinnati, so they
-were **backported into `kart_sorter.py`** (§3.2, §3.4, §3.5) and are now **shared
+were **backported into `kart_sorter.py`** (§3.2, §3.5, §3.6) and are now **shared
 behavior**, not differences. Later the same day, printer detection was added to the Full
-Throttle build only, creating a new difference in the other direction (item 3). The
-current list:
+Throttle build only, creating a new difference in the other direction (item 4), and the
+24-hour report cleanup (§3.3) was added to *both*, differing only in its prefix
+constant (item 3). The current list:
 
 1. **Classification ranges (`get_kart_class`)** — the Cincinnati fleet:
 
@@ -347,10 +391,17 @@ current list:
    tools on the same day doesn't clobber one report. This is why the backport left the
    original's filename alone.
 
-3. **No printer detection / terminal fallback** (diverged 2026-08-14) — the Full Throttle
+3. **`REPORT_PREFIX`** — the cleanup constant (§3.3) is `KartTimeCinci_Results_` here.
+   This follows directly from difference 2, and it means **each build only ever deletes
+   its own reports**: running the Cincinnati tool leaves `Kart_Results_*.txt` untouched
+   and vice versa. On a machine that runs both, each tool tidies up after itself the
+   next time *it* runs. The cleanup function itself is otherwise identical in both — the
+   prefix is the only line that differs.
+
+4. **No printer detection / terminal fallback** (diverged 2026-08-14) — the Full Throttle
    build gained `default_printer_status()`, `show_in_terminal()`, and the `main()`
-   branches that display the report in the console when there's no usable printer (§3.4,
-   §3.5). `kartTimeCinci.py` does **not** have any of it: it still calls `print_file()`
+   branches that display the report in the console when there's no usable printer (§3.5,
+   §3.6). `kartTimeCinci.py` does **not** have any of it: it still calls `print_file()`
    unconditionally and dead-ends on `"Could not print"`.
 
    This one is an **intentional divergence, not drift** — the change was explicitly
@@ -362,15 +413,17 @@ current list:
    branches in `main()`. Nothing in it depends on the fleet or the output filename.
 
 **Still identical in both builds** (documented in §3, don't re-document as differences):
-newest-`.xls` input selection, `print_file` itself returning dispatch success/failure
-with the dispatched-≠-printed caveat, close-on-successful-print, the no-data message,
-the `try/except` wrapper around `main()`, and the report's six columns including
-`Run Time` / `Total Laps` with their `parse_number` / `format_run_time` /
-`format_total_laps` helpers (added to both files in lockstep, 2026-08-14 — §3.2, §3.3).
+newest-`.xls` input selection, the 24-hour `cleanup_old_reports()` sweep and where it's
+called from in `main()` (§3.3 — same logic, only the prefix differs), `print_file` itself
+returning dispatch success/failure with the dispatched-≠-printed caveat,
+close-on-successful-print, the no-data message, the `try/except` wrapper around `main()`,
+and the report's six columns including `Run Time` / `Total Laps` with their
+`parse_number` / `format_run_time` / `format_total_laps` helpers (added to both files in
+lockstep, 2026-08-14 — §3.2, §3.4).
 
 **If you change one of those shared behaviors, change it in both files** — unless you are
 deliberately diverging, in which case record it here as a numbered difference the way
-item 3 does. They are independent copies, not a shared module; that is intentional (each
+item 4 does. They are independent copies, not a shared module; that is intentional (each
 ships as a self-contained single-file `.exe`), but it means the two can silently drift.
 
 **Build:** from inside `kartTimeCinci/`, `python -m PyInstaller --onefile
@@ -479,16 +532,19 @@ Nothing else in the repo was found to be duplicated or dead: `kart_sorter.py`,
 2. Saves the export to the Windows **Downloads** folder. **No renaming needed** — any
    filename works, as long as it's the newest `.xls` there.
 3. Double-clicks `Kart time program/dist/kart_sorter.exe`.
-4. Program reads the newest `~/Downloads/*.xls`, classifies each kart as Pro / Junior /
+4. Program first deletes any of its own `Kart_Results_*.txt` in Downloads older than
+   24 hours (§3.3), so old printouts don't accumulate. Nothing else in Downloads is
+   touched.
+5. Program reads the newest `~/Downloads/*.xls`, classifies each kart as Pro / Junior /
    Intermediate / Other by kart number, ranks each class by best lap time.
-5. Writes `~/Downloads/Kart_Results_<date>.txt`, then checks whether the default printer
-   can actually produce paper (§3.4).
+6. Writes `~/Downloads/Kart_Results_<date>.txt`, then checks whether the default printer
+   can actually produce paper (§3.5).
    - **Yes** → sends it to the default printer.
    - **No printer / print-to-PDF / offline** → prints the report into the console window
      instead, so the operator can read it off the screen. The `.txt` is saved either way.
-6. On a successful print the console **closes by itself**. It stays open whenever there's
+7. On a successful print the console **closes by itself**. It stays open whenever there's
    something to read — the on-screen results, "No kart data found.", or an error.
-7. Separately (no code link), the operator manually transcribes/keys weekly
+8. Separately (no code link), the operator manually transcribes/keys weekly
    results and standings into `league template.xlsx` to track season-long league
    points across `Division 1/2/3` and `Juniors`.
 

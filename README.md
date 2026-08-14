@@ -19,6 +19,8 @@
   - there's **no default printer** set up at all
 
   The `.txt` file is still saved to your Downloads folder as `Kart_Results_<date>.txt` in every case, so you can always open and print it by hand later. If you wanted a real printout, set a working printer as your Windows default and run it again.
+  ### Old results files clean themselves up
+  Each time it runs, the program deletes its **own** results files in your Downloads folder that are more than 24 hours old, so they don't pile up. It only ever touches files it created (`Kart_Results_<date>.txt`, or `KartTimeCinci_Results_<date>.txt` for the Cincinnati build) — nothing else in Downloads is deleted. If you want to keep a printout, move it out of Downloads.
 
   ### If the window stays open
   It only stays open when there's something to read:
